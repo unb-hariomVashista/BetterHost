@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: betterhost-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: betterhost
+      POSTGRES_PASSWORD: betterhost
+      POSTGRES_DB: betterhost
+    ports:
+      - "5433:5432"
+    volumes:
+      - betterhost-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  betterhost-postgres-data:
