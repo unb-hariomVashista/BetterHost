@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Go API storage & binaries
+apps/api/storage/
+storage/uploads/
+storage/deployments/
+*.exe
+
+# OS & Environment files
+.DS_Store
+*.pem
+.env
+.env.local

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type Service struct {
@@ -46,4 +48,16 @@ func (s *Service) ListProjects(ctx context.Context) ([]Project, error) {
 	}
 
 	return projects, nil
+}
+
+func (s *Service) GetProjectByID(ctx context.Context, id uuid.UUID) (*Project, error) {
+	return s.repository.FindByID(ctx, id)
+}
+
+func (s *Service) GetProjectBySlug(ctx context.Context, slug string) (*Project, error) {
+	return s.repository.FindBySlug(ctx, slug)
+}
+
+func (s *Service) DeleteProject(ctx context.Context, id uuid.UUID) error {
+	return s.repository.Delete(ctx, id)
 }
