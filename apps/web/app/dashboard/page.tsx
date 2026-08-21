@@ -32,6 +32,7 @@ import {
   Activity,
   List,
   Trash2,
+  LogOut,
 } from "lucide-react";
 import {
   createProject,
@@ -83,8 +84,20 @@ export default function DashboardPage() {
 
   const [selectedDeploymentIndex, setSelectedDeploymentIndex] = useState<number>(0);
 
+  const handleLogout = () => {
+    localStorage.removeItem("betterhost_token");
+    localStorage.removeItem("betterhost_user");
+    window.location.href = "/login";
+  };
+
   // Load user profile & projects on mount
   useEffect(() => {
+    const token = localStorage.getItem("betterhost_token");
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
     const savedUser = localStorage.getItem("betterhost_user");
     if (savedUser) {
       try {
@@ -94,19 +107,19 @@ export default function DashboardPage() {
       }
     }
 
-    const token = localStorage.getItem("betterhost_token");
-    if (token) {
-      getCurrentUser(token)
-        .then((u) => {
-          if (u) {
-            setUser(u);
-            localStorage.setItem("betterhost_user", JSON.stringify(u));
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to fetch current user", err);
-        });
-    }
+    getCurrentUser(token)
+      .then((u) => {
+        if (u) {
+          setUser(u);
+          localStorage.setItem("betterhost_user", JSON.stringify(u));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch current user", err);
+        localStorage.removeItem("betterhost_token");
+        localStorage.removeItem("betterhost_user");
+        window.location.href = "/login";
+      });
 
     fetchProjects();
   }, []);
@@ -182,11 +195,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("betterhost_token");
-    localStorage.removeItem("betterhost_user");
-    window.location.href = "/login";
-  };
+
 
   // Generate slug preview from input
   const slugPreview = projectName.trim()
@@ -384,7 +393,7 @@ export default function DashboardPage() {
                 title="Log out"
                 className="text-slate-400 hover:text-red-600 transition-colors cursor-pointer p-1"
               >
-                <ChevronDown className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
