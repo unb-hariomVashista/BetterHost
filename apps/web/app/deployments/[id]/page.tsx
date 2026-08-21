@@ -31,6 +31,7 @@ import {
   getAllDeployments,
   getProjects,
   deleteDeployment,
+  API_BASE_URL,
   DeploymentWithProject,
   Project,
   UserResponse,
@@ -335,7 +336,7 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                     </button>
 
                     <a
-                      href={`http://localhost:8080/projects/${deploymentItem.projectSlug}/${deploymentItem.slug}/`}
+                      href={`${API_BASE_URL}/projects/${deploymentItem.projectSlug}/${deploymentItem.slug}/`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
@@ -488,7 +489,7 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                     <div className="flex items-center justify-between py-1 border-b border-slate-100">
                       <span className="text-slate-500">Domain</span>
                       <a
-                        href={`http://localhost:8080/projects/${deploymentItem.projectSlug}/${deploymentItem.slug}/`}
+                        href={`${API_BASE_URL}/projects/${deploymentItem.projectSlug}/${deploymentItem.slug}/`}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-indigo-600 font-bold hover:underline flex items-center gap-1 truncate max-w-[170px]"

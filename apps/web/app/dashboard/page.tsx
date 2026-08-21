@@ -41,6 +41,7 @@ import {
   deleteProject,
   deleteDeployment,
   getCurrentUser,
+  API_BASE_URL,
   Project,
   Deployment,
   UserResponse,
@@ -1222,7 +1223,7 @@ export default function DashboardPage() {
                                     )}
                                   </div>
                                   <a
-                                    href={`http://localhost:8080/projects/${item.project.slug}/${item.deployment.slug}/`}
+                                    href={`${API_BASE_URL}/projects/${item.project.slug}/${item.deployment.slug}/`}
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={(e) => e.stopPropagation()}
@@ -1322,7 +1323,7 @@ export default function DashboardPage() {
                                   {openActionDropdownId === item.deployment.id && (
                                     <div className="absolute right-6 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left">
                                       <a
-                                        href={`http://localhost:8080/projects/${item.project.slug}/${item.deployment.slug}/`}
+                                        href={`${API_BASE_URL}/projects/${item.project.slug}/${item.deployment.slug}/`}
                                         target="_blank"
                                         rel="noreferrer"
                                         onClick={(e) => e.stopPropagation()}

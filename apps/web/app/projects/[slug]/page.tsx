@@ -31,6 +31,7 @@ import {
   getProjectDeployments,
   deleteProject,
   deleteDeployment,
+  API_BASE_URL,
   Project,
   Deployment,
   UserResponse,
@@ -375,7 +376,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </div>
 
                     <a
-                      href={`http://localhost:8080/projects/${project.slug}`}
+                      href={`${API_BASE_URL}/projects/${project.slug}`}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs text-indigo-600 font-mono flex items-center gap-1 hover:underline font-semibold"
@@ -526,7 +527,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                       )}
                                     </div>
                                     <a
-                                      href={`http://localhost:8080/projects/${project.slug}/${dep.slug}`}
+                                      href={`${API_BASE_URL}/projects/${project.slug}/${dep.slug}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="font-mono text-xs text-slate-400 hover:text-indigo-600 flex items-center gap-1"
@@ -596,7 +597,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     {openDropdownId === dep.id && (
                                       <div className="absolute right-6 top-10 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left">
                                         <a
-                                          href={`http://localhost:8080/projects/${project.slug}/${dep.slug}/`}
+                                          href={`${API_BASE_URL}/projects/${project.slug}/${dep.slug}/`}
                                           target="_blank"
                                           rel="noreferrer"
                                           className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors"
