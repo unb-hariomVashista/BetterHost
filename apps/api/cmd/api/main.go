@@ -17,17 +17,18 @@ import (
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
 		origin := r.Header.Get("Origin")
 
-		if allowedOrigin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		} else if origin != "" {
+		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+			if allowedOrigin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			}
 		}
 
 		w.Header().Set("Vary", "Origin")
