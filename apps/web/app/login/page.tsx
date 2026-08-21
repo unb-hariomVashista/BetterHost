@@ -26,7 +26,7 @@ export default function LoginPage() {
       }
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = "/";
+        window.location.href = "/dashboard";
       }, 1000);
     } catch (err: any) {
       setError(err.message || "Invalid email or password");

@@ -45,9 +45,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("warning: .env file not found")
-	}
+	// Load .env file for local development if present
+	_ = godotenv.Load()
 
 	ctx := context.Background()
 
@@ -108,12 +107,17 @@ func main() {
 	// Static Project & Deployment Route Serving (/projects/my-portfolio or /projects/my-portfolio/deploy-1)
 	mux.HandleFunc("GET /projects/", deploymentServer.ServeProjectOrDeployment)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: corsMiddleware(mux),
 	}
 
-	log.Println("BetterHost API running on :8080")
+	log.Printf("BetterHost API running on :%s", port)
 
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)

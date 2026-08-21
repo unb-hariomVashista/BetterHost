@@ -39,6 +39,7 @@ import {
   getProjectDeployments,
   deleteProject,
   deleteDeployment,
+  getCurrentUser,
   Project,
   Deployment,
   UserResponse,
@@ -91,6 +92,20 @@ export default function DashboardPage() {
       } catch (e) {
         console.error("Failed to parse stored user", e);
       }
+    }
+
+    const token = localStorage.getItem("betterhost_token");
+    if (token) {
+      getCurrentUser(token)
+        .then((u) => {
+          if (u) {
+            setUser(u);
+            localStorage.setItem("betterhost_user", JSON.stringify(u));
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch current user", err);
+        });
     }
 
     fetchProjects();

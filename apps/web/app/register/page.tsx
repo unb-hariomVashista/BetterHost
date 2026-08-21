@@ -47,7 +47,7 @@ export default function RegisterPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = "/";
+        window.location.href = "/dashboard";
       }, 1500);
     } catch (err: any) {
       setError(err.message || "Failed to register. Please try again.");
