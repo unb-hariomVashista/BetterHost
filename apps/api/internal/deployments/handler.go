@@ -62,7 +62,7 @@ func (h *Handler) CreateWithZip(w http.ResponseWriter, r *http.Request) {
 	deploymentSlug := r.FormValue("slug")
 
 	// Ensure staging directory exists
-	stagingDir := filepath.Join("storage", "uploads")
+	stagingDir := filepath.Join(getStorageDir(), "uploads")
 	if err := os.MkdirAll(stagingDir, 0755); err != nil {
 		http.Error(w, "failed to create staging directory", http.StatusInternalServerError)
 		return

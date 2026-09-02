@@ -61,6 +61,13 @@ func (wp *WorkerPool) Enqueue(job DeploymentJob) {
 	log.Printf("Enqueued deployment job %s to channel", job.DeploymentID)
 }
 
+func getStorageDir() string {
+	if s := os.Getenv("STORAGE_DIR"); s != "" {
+		return s
+	}
+	return "storage"
+}
+
 func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	defer os.Remove(job.ZipFilePath)
 
@@ -70,7 +77,7 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	}
 
 	// Target extraction directory
-	targetDir := filepath.ToSlash(filepath.Join("storage", "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug)))
+	targetDir := filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug)))
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Printf("Failed to create target dir %s: %v", targetDir, err)
