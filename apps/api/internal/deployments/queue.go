@@ -153,10 +153,22 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 		}
 	}
 
+	// Clean up macOS metadata folder __MACOSX if present
+	os.RemoveAll(filepath.Join(targetDir, "__MACOSX"))
+
 	// Step 2: Post-extraction auto-flattening if zip contained a single wrapper directory (e.g. CBC/)
 	entries, err := os.ReadDir(targetDir)
-	if err == nil && len(entries) == 1 && entries[0].IsDir() {
-		singleFolder := filepath.Join(targetDir, entries[0].Name())
+	var validDirs []os.DirEntry
+	if err == nil {
+		for _, entry := range entries {
+			if !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "__MACOSX" {
+				validDirs = append(validDirs, entry)
+			}
+		}
+	}
+
+	if len(validDirs) == 1 && validDirs[0].IsDir() {
+		singleFolder := filepath.Join(targetDir, validDirs[0].Name())
 		subEntries, subErr := os.ReadDir(singleFolder)
 		if subErr == nil {
 			for _, se := range subEntries {
@@ -164,20 +176,51 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 				newPath := filepath.Join(targetDir, se.Name())
 				os.Rename(oldPath, newPath)
 			}
-			os.Remove(singleFolder)
+			os.RemoveAll(singleFolder)
 		}
 	}
 
-	// Step 3: Multi-Format Entrypoint Detection (index.html > index.php > index.htm > default.html)
+	// Step 3: Multi-Format & Case-Insensitive Entrypoint Detection
 	entrypoint := "index.html"
 	foundEntrypoint := false
 	candidates := []string{"index.html", "index.php", "index.htm", "default.html"}
 
+	rootEntries, _ := os.ReadDir(targetDir)
 	for _, candidate := range candidates {
-		if _, err := os.Stat(filepath.Join(targetDir, candidate)); err == nil {
-			entrypoint = candidate
-			foundEntrypoint = true
+		for _, re := range rootEntries {
+			if !re.IsDir() && strings.EqualFold(re.Name(), candidate) {
+				entrypoint = re.Name()
+				foundEntrypoint = true
+				break
+			}
+		}
+		if foundEntrypoint {
 			break
+		}
+	}
+
+	// Fallback: Check inside top-level subfolders if entrypoint was not found at root
+	if !foundEntrypoint {
+		for _, re := range rootEntries {
+			if re.IsDir() && !strings.HasPrefix(re.Name(), ".") && re.Name() != "__MACOSX" {
+				subDir := filepath.Join(targetDir, re.Name())
+				subDirEntries, _ := os.ReadDir(subDir)
+				for _, candidate := range candidates {
+					for _, sde := range subDirEntries {
+						if !sde.IsDir() && strings.EqualFold(sde.Name(), candidate) {
+							entrypoint = filepath.ToSlash(filepath.Join(re.Name(), sde.Name()))
+							foundEntrypoint = true
+							break
+						}
+					}
+					if foundEntrypoint {
+						break
+					}
+				}
+			}
+			if foundEntrypoint {
+				break
+			}
 		}
 	}
 
