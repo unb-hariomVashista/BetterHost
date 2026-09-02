@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -76,7 +77,41 @@ var (
 	phpShortTagRegex = regexp.MustCompile(`(?s)<\?=.*?\?>`)
 )
 
+func normalizeArtifactPath(pathStr string) string {
+	if pathStr == "" {
+		return ""
+	}
+	clean := strings.ReplaceAll(pathStr, "\\", "/")
+	hostPath := filepath.FromSlash(clean)
+
+	if filepath.IsAbs(hostPath) {
+		return hostPath
+	}
+	if _, err := os.Stat(hostPath); err == nil {
+		return hostPath
+	}
+
+	if storageDir := os.Getenv("STORAGE_DIR"); storageDir != "" {
+		relStorage := strings.TrimPrefix(clean, "storage/")
+		alt := filepath.Join(storageDir, filepath.FromSlash(relStorage))
+		if _, err := os.Stat(alt); err == nil {
+			return alt
+		}
+	}
+
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		alt := filepath.Join(execDir, hostPath)
+		if _, err := os.Stat(alt); err == nil {
+			return alt
+		}
+	}
+
+	return hostPath
+}
+
 func resolveIndexFile(dir string) (string, os.FileInfo, bool) {
+	dir = normalizeArtifactPath(dir)
 	candidates := []string{"index.html", "index.php", "index.htm", "default.html"}
 	for _, c := range candidates {
 		p := filepath.Join(dir, c)
@@ -88,6 +123,8 @@ func resolveIndexFile(dir string) (string, os.FileInfo, bool) {
 }
 
 func resolveFilePath(artifactPath, subpath string) (string, os.FileInfo, bool) {
+	artifactPath = normalizeArtifactPath(artifactPath)
+	subpath = strings.ReplaceAll(subpath, "\\", "/")
 	subpath = filepath.Clean(subpath)
 
 	// 1. Direct check
@@ -266,6 +303,8 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 
 	targetFilePath, _, found := resolveFilePath(dep.ArtifactPath, subpath)
 	if !found {
+		normPath := normalizeArtifactPath(dep.ArtifactPath)
+		log.Printf("[ServeProjectOrDeployment] File not found: subpath=%q, DB artifactPath=%q, normalizedPath=%q", subpath, dep.ArtifactPath, normPath)
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
 	}

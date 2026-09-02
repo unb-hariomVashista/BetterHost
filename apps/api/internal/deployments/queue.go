@@ -70,7 +70,7 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	}
 
 	// Target extraction directory
-	targetDir := filepath.Join("storage", "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug))
+	targetDir := filepath.ToSlash(filepath.Join("storage", "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug)))
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Printf("Failed to create target dir %s: %v", targetDir, err)
