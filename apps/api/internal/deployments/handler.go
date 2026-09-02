@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/unb-hariomVashista/BetterHost.git/internal/auth"
 	"github.com/unb-hariomVashista/BetterHost.git/internal/projects"
 )
 
@@ -102,7 +103,16 @@ func (h *Handler) CreateWithZip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListAll(w http.ResponseWriter, r *http.Request) {
-	deps, err := h.service.ListAllDeployments(r.Context())
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	var deps []DeploymentWithProject
+	var err error
+
+	if ok {
+		deps, err = h.service.ListAllDeploymentsForUser(r.Context(), userID)
+	} else {
+		deps, err = h.service.ListAllDeployments(r.Context())
+	}
+
 	if err != nil {
 		http.Error(w, "failed to fetch all deployments", http.StatusInternalServerError)
 		return

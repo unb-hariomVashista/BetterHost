@@ -209,29 +209,17 @@ func resolveFilePath(artifactPath, subpath string) (string, os.FileInfo, bool) {
 }
 
 func (s *Server) restoreDeploymentFilesFromDB(ctx context.Context, dep *Deployment) bool {
-	dbFiles, err := s.deploymentService.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
-	if err != nil || len(dbFiles) == 0 {
-		return false
-	}
-
 	targetDir := normalizeArtifactPath(dep.ArtifactPath)
 	if targetDir == "" {
 		targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
 	}
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	restoredCount, err := s.deploymentService.repository.RestoreFilesToDisk(ctx, dep.ID, targetDir)
+	if err != nil || restoredCount == 0 {
 		return false
 	}
 
-	for _, file := range dbFiles {
-		filePath := filepath.Join(targetDir, filepath.FromSlash(file.Path))
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			continue
-		}
-		os.WriteFile(filePath, file.Content, 0644)
-	}
-
-	log.Printf("[Self-Healing Storage] Restored %d files from PostgreSQL database for deployment %s to %s", len(dbFiles), dep.Slug, targetDir)
+	log.Printf("[Self-Healing Storage] Restored %d files from PostgreSQL database for deployment %s to %s", restoredCount, dep.Slug, targetDir)
 	return true
 }
 
@@ -331,6 +319,15 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 
 	targetFilePath, _, found := resolveFilePath(dep.ArtifactPath, subpath)
 	if !found {
+		targetDir := normalizeArtifactPath(dep.ArtifactPath)
+		if targetDir == "" {
+			targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
+		}
+		if restored, _ := s.deploymentService.repository.RestoreSingleFileFromDB(r.Context(), dep.ID, subpath, targetDir); restored {
+			targetFilePath, _, found = resolveFilePath(dep.ArtifactPath, subpath)
+		}
+	}
+	if !found {
 		if s.restoreDeploymentFilesFromDB(r.Context(), dep) {
 			targetFilePath, _, found = resolveFilePath(dep.ArtifactPath, subpath)
 		}
@@ -388,6 +385,12 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 		default:
 			contentType = "application/octet-stream"
 		}
+	}
+
+	if ext == ".html" || ext == ".htm" || ext == ".php" {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
 	}
 
 	w.Header().Set("Content-Type", contentType)

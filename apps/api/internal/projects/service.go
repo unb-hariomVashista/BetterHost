@@ -18,7 +18,7 @@ func NewService(repository *Repository) *Service {
 	}
 }
 
-func (s *Service) CreateProject(ctx context.Context, name string) (*Project, error) {
+func (s *Service) CreateProject(ctx context.Context, userID uuid.UUID, name string) (*Project, error) {
 	name = strings.TrimSpace(name)
 
 	if name == "" {
@@ -27,7 +27,7 @@ func (s *Service) CreateProject(ctx context.Context, name string) (*Project, err
 
 	slug := generateSlug(name)
 
-	project, err := s.repository.Create(ctx, name, slug)
+	project, err := s.repository.Create(ctx, userID, name, slug)
 	if err != nil {
 		return nil, fmt.Errorf("create project: %w", err)
 	}
@@ -50,6 +50,15 @@ func (s *Service) ListProjects(ctx context.Context) ([]Project, error) {
 	return projects, nil
 }
 
+func (s *Service) ListProjectsForUser(ctx context.Context, userID uuid.UUID) ([]Project, error) {
+	projects, err := s.repository.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user projects: %w", err)
+	}
+
+	return projects, nil
+}
+
 func (s *Service) GetProjectByID(ctx context.Context, id uuid.UUID) (*Project, error) {
 	return s.repository.FindByID(ctx, id)
 }
@@ -60,4 +69,8 @@ func (s *Service) GetProjectBySlug(ctx context.Context, slug string) (*Project, 
 
 func (s *Service) DeleteProject(ctx context.Context, id uuid.UUID) error {
 	return s.repository.Delete(ctx, id)
+}
+
+func (s *Service) DeleteProjectForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	return s.repository.DeleteForUser(ctx, id, userID)
 }

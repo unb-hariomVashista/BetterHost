@@ -2,6 +2,9 @@ package deployments
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -85,6 +88,48 @@ func (r *Repository) FindAll(ctx context.Context) ([]DeploymentWithProject, erro
 		JOIN projects p ON p.id = d.project_id
 		ORDER BY d.created_at DESC
 		`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deps []DeploymentWithProject
+	for rows.Next() {
+		var dep DeploymentWithProject
+		if err := rows.Scan(
+			&dep.ID,
+			&dep.ProjectID,
+			&dep.Slug,
+			&dep.Entrypoint,
+			&dep.ArtifactPath,
+			&dep.Status,
+			&dep.CreatedAt,
+			&dep.UpdatedAt,
+			&dep.ProjectName,
+			&dep.ProjectSlug,
+		); err != nil {
+			return nil, err
+		}
+		deps = append(deps, dep)
+	}
+
+	return deps, nil
+}
+
+func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]DeploymentWithProject, error) {
+	_ = r.CleanupStaleDeployments(ctx)
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at,
+		       p.name, p.slug
+		FROM deployments d
+		JOIN projects p ON p.id = d.project_id
+		WHERE p.user_id = $1 OR p.user_id IS NULL
+		ORDER BY d.created_at DESC
+		`,
+		userID,
 	)
 	if err != nil {
 		return nil, err
@@ -316,3 +361,83 @@ func (r *Repository) GetDeploymentFilesByDeploymentID(
 
 	return files, nil
 }
+
+func (r *Repository) RestoreFilesToDisk(
+	ctx context.Context,
+	deploymentID uuid.UUID,
+	targetDir string,
+) (int, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT path, content
+		FROM deployment_files
+		WHERE deployment_id = $1
+		`,
+		deploymentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	restoredCount := 0
+	for rows.Next() {
+		var relPath string
+		var content []byte
+		if err := rows.Scan(&relPath, &content); err != nil {
+			continue
+		}
+
+		filePath := filepath.Join(targetDir, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			continue
+		}
+
+		if err := os.WriteFile(filePath, content, 0644); err == nil {
+			restoredCount++
+		}
+	}
+
+	return restoredCount, rows.Err()
+}
+
+func (r *Repository) RestoreSingleFileFromDB(
+	ctx context.Context,
+	deploymentID uuid.UUID,
+	relPath string,
+	targetDir string,
+) (bool, error) {
+	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+
+	var content []byte
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT content
+		FROM deployment_files
+		WHERE deployment_id = $1 AND (LOWER(path) = LOWER($2) OR LOWER(path) = LOWER($3))
+		LIMIT 1
+		`,
+		deploymentID,
+		cleanRel,
+		"./"+cleanRel,
+	).Scan(&content)
+
+	if err != nil {
+		return false, err
+	}
+
+	filePath := filepath.Join(targetDir, filepath.FromSlash(cleanRel))
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return false, err
+	}
+
+	if err := os.WriteFile(filePath, content, 0644); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+

@@ -18,17 +18,18 @@ import (
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
 
-		if origin != "" {
+		if allowedOrigin != "" {
+			if origin == allowedOrigin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+		} else if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
-			allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
-			if allowedOrigin != "" {
-				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-			} else {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 
 		w.Header().Set("Vary", "Origin")
@@ -58,6 +59,10 @@ func main() {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
+		if os.Getenv("ENV") == "production" {
+			log.Fatal("FATAL: JWT_SECRET environment variable is required in production")
+		}
+		log.Println("WARNING: JWT_SECRET not set, using default fallback key for local dev")
 		jwtSecret = "betterhost-jwt-secret-key-change-in-prod"
 	}
 
@@ -89,24 +94,24 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Auth routes
+	// Auth routes (Public)
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
 	mux.HandleFunc("GET /api/v1/auth/me", authHandler.Me)
 
-	// Projects API routes
-	mux.HandleFunc("POST /api/v1/projects", projectHandler.Create)
-	mux.HandleFunc("GET /api/v1/projects", projectHandler.List)
-	mux.HandleFunc("DELETE /api/v1/projects/{id}", projectHandler.Delete)
+	// Projects API routes (Protected)
+	mux.HandleFunc("POST /api/v1/projects", jwtService.AuthMiddleware(projectHandler.Create))
+	mux.HandleFunc("GET /api/v1/projects", jwtService.AuthMiddleware(projectHandler.List))
+	mux.HandleFunc("DELETE /api/v1/projects/{id}", jwtService.AuthMiddleware(projectHandler.Delete))
 
-	// Deployments API routes
-	mux.HandleFunc("GET /api/v1/deployments", deploymentHandler.ListAll)
-	mux.HandleFunc("POST /api/v1/projects/{projectId}/deployments", deploymentHandler.CreateWithZip)
-	mux.HandleFunc("GET /api/v1/projects/{projectId}/deployments", deploymentHandler.ListByProject)
-	mux.HandleFunc("POST /api/v1/deployments/{id}/redeploy", deploymentHandler.Redeploy)
-	mux.HandleFunc("DELETE /api/v1/deployments/{id}", deploymentHandler.Delete)
+	// Deployments API routes (Protected)
+	mux.HandleFunc("GET /api/v1/deployments", jwtService.AuthMiddleware(deploymentHandler.ListAll))
+	mux.HandleFunc("POST /api/v1/projects/{projectId}/deployments", jwtService.AuthMiddleware(deploymentHandler.CreateWithZip))
+	mux.HandleFunc("GET /api/v1/projects/{projectId}/deployments", jwtService.AuthMiddleware(deploymentHandler.ListByProject))
+	mux.HandleFunc("POST /api/v1/deployments/{id}/redeploy", jwtService.AuthMiddleware(deploymentHandler.Redeploy))
+	mux.HandleFunc("DELETE /api/v1/deployments/{id}", jwtService.AuthMiddleware(deploymentHandler.Delete))
 
-	// Static Project & Deployment Route Serving (/projects/my-portfolio or /projects/my-portfolio/deploy-1)
+	// Static Project & Deployment Route Serving (Public preview URLs e.g. /projects/my-portfolio)
 	mux.HandleFunc("GET /projects/", deploymentServer.ServeProjectOrDeployment)
 
 	port := os.Getenv("PORT")

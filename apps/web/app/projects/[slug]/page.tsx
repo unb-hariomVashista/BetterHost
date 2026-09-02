@@ -25,12 +25,15 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  RotateCcw,
+  LogOut,
 } from "lucide-react";
 import {
   getProjects,
   getProjectDeployments,
   deleteProject,
   deleteDeployment,
+  redeployDeployment,
   API_BASE_URL,
   Project,
   Deployment,
@@ -133,6 +136,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }
   };
 
+  const handleRedeployDeployment = async (e: React.MouseEvent, deploymentId: string) => {
+    e.stopPropagation();
+    try {
+      await redeployDeployment(deploymentId);
+      alert("Redeploy process started successfully!");
+      fetchProjectData();
+    } catch (err: any) {
+      alert(err.message || "Failed to redeploy deployment");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("betterhost_token");
     localStorage.removeItem("betterhost_user");
@@ -162,14 +176,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       {/* ================= SHADCN-STYLE SIDEBAR ================= */}
       <aside className="w-full md:w-64 bg-white border-r border-slate-200/80 flex flex-col shrink-0 select-none">
         {/* Header Branding */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <a href="/dashboard" className="flex items-center gap-2">
+        <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center">
             <Image
               src="/logo.png"
               alt="BetterHost Logo"
-              width={150}
-              height={38}
-              className="h-8 w-auto object-contain"
+              width={220}
+              height={54}
+              className="h-10 w-auto object-contain scale-110 origin-left"
               priority
             />
           </a>
@@ -193,20 +207,22 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
             {/* Nav 2: Projects Dropdown Menu (Active Tab) */}
             <div className="flex flex-col">
-              <button
-                onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-900 transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
+              <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-900 transition-all">
+                <a href="/projects" className="flex items-center gap-3 flex-1">
                   <Folder className="w-4 h-4 shrink-0 text-indigo-600" />
                   <span>Projects</span>
-                </div>
-                {isProjectsDropdownOpen ? (
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                )}
-              </button>
+                </a>
+                <button
+                  onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
+                  className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {isProjectsDropdownOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
 
               {/* Projects Collapsible Sub-List */}
               {isProjectsDropdownOpen && (
@@ -239,7 +255,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
             {/* Nav 3: Deployments */}
             <a
-              href="/dashboard"
+              href="/deployments"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all"
             >
               <Zap className="w-4 h-4 shrink-0 text-slate-500" />
@@ -247,26 +263,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             </a>
           </div>
 
-          {/* Secondary Links & User Profile Footer */}
-          <div className="flex flex-col gap-4 pt-4 border-t border-slate-100">
-            <div className="flex flex-col gap-0.5">
-              <a
-                href="/#changelog"
-                className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span>Changelog</span>
-              </a>
-              <a
-                href="/#support"
-                className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                <HelpCircle className="w-4 h-4 shrink-0" />
-                <span>Support</span>
-              </a>
-            </div>
-
-            {/* User Profile Footer */}
+          {/* User Profile Footer */}
+          <div className="pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
               <div className="flex items-center gap-2.5 truncate">
                 <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[11px] shrink-0">
@@ -286,7 +284,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 title="Log out"
                 className="text-slate-400 hover:text-red-600 transition-colors cursor-pointer p-1"
               >
-                <ChevronDown className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4 text-slate-400 hover:text-red-600" />
               </button>
             </div>
           </div>
@@ -511,10 +509,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             filteredDeployments.map((dep, idx) => (
                               <tr
                                 key={dep.id}
-                                onClick={() => window.location.href = `/deployments/${dep.id}`}
-                                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                                className="hover:bg-slate-50/80 transition-colors"
                               >
-                                <td className="py-4 px-6">
+                                <td
+                                  className="py-4 px-6 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2">
                                       <span className="font-mono font-bold text-slate-900 text-sm">
@@ -530,22 +530,29 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                       href={`${API_BASE_URL}/projects/${project.slug}/${dep.slug}`}
                                       target="_blank"
                                       rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
                                       className="font-mono text-xs text-slate-400 hover:text-indigo-600 flex items-center gap-1"
                                     >
-                                      <span>a1b2c3d</span>
+                                      <span>{dep.id ? dep.id.slice(0, 7) : dep.slug}</span>
                                       <ExternalLink className="w-3 h-3 opacity-70" />
                                     </a>
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-6">
+                                <td
+                                  className="py-4 px-6 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                                     Production
                                   </span>
                                 </td>
 
-                                <td className="py-4 px-6">
+                                <td
+                                  className="py-4 px-6 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   {dep.status === "READY" ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
                                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -564,15 +571,24 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                   )}
                                 </td>
 
-                                <td className="py-4 px-6 text-slate-500">
+                                <td
+                                  className="py-4 px-6 text-slate-500 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   {new Date(dep.createdAt).toLocaleString()}
                                 </td>
 
-                                <td className="py-4 px-6 font-mono text-slate-500">
+                                <td
+                                  className="py-4 px-6 font-mono text-slate-500 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   1m 17s
                                 </td>
 
-                                <td className="py-4 px-6">
+                                <td
+                                  className="py-4 px-6 cursor-pointer"
+                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                >
                                   <div className="flex items-center gap-2">
                                     <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[10px]">
                                       {userInitials}
@@ -583,30 +599,56 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                   </div>
                                 </td>
 
-                                <td className="py-4 px-6 text-right relative">
-                                  <div className="flex items-center justify-end">
+                                <td
+                                  className="py-4 px-6 text-right relative"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                                     <button
-                                      onClick={() =>
-                                        setOpenDropdownId(openDropdownId === dep.id ? null : dep.id)
-                                      }
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdownId(openDropdownId === dep.id ? null : dep.id);
+                                      }}
                                       className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                                     >
                                       <MoreVertical className="w-4 h-4" />
                                     </button>
 
                                     {openDropdownId === dep.id && (
-                                      <div className="absolute right-6 top-10 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left">
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute right-6 top-10 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left animate-in fade-in zoom-in-95 duration-100"
+                                      >
                                         <a
                                           href={`${API_BASE_URL}/projects/${project.slug}/${dep.slug}/`}
                                           target="_blank"
                                           rel="noreferrer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                          }}
                                           className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors"
                                         >
                                           <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
                                           <span>Visit Site</span>
                                         </a>
                                         <button
-                                          onClick={() => handleDeleteDeployment(dep.id)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                            handleRedeployDeployment(e, dep.id);
+                                          }}
+                                          className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                                        >
+                                          <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>Redeploy</span>
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                            handleDeleteDeployment(dep.id);
+                                          }}
                                           className="w-full px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 mt-1"
                                         >
                                           <Trash2 className="w-3.5 h-3.5 text-red-600" />

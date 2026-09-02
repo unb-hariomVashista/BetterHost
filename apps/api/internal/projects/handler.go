@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/unb-hariomVashista/BetterHost.git/internal/auth"
 )
 
 type Handler struct {
@@ -35,10 +36,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.service.CreateProject(
-		r.Context(),
-		req.Name,
-	)
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	var project *Project
+	var err error
+
+	if ok {
+		project, err = h.service.CreateProject(r.Context(), userID, req.Name)
+	} else {
+		project, err = h.service.CreateProject(r.Context(), uuid.Nil, req.Name)
+	}
 
 	if err != nil {
 		log.Printf("error creating project: %v", err)
@@ -53,7 +59,16 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	projects, err := h.service.ListProjects(r.Context())
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	var projectsList []Project
+	var err error
+
+	if ok {
+		projectsList, err = h.service.ListProjectsForUser(r.Context(), userID)
+	} else {
+		projectsList, err = h.service.ListProjects(r.Context())
+	}
+
 	if err != nil {
 		http.Error(w, "failed to fetch projects", http.StatusInternalServerError)
 		return
@@ -61,7 +76,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(projects)
+	json.NewEncoder(w).Encode(projectsList)
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +87,14 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.DeleteProject(r.Context(), id); err != nil {
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if ok {
+		err = h.service.DeleteProjectForUser(r.Context(), id, userID)
+	} else {
+		err = h.service.DeleteProject(r.Context(), id)
+	}
+
+	if err != nil {
 		log.Printf("error deleting project: %v", err)
 		http.Error(w, "failed to delete project", http.StatusInternalServerError)
 		return

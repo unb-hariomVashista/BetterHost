@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import {
   LayoutGrid,
@@ -74,6 +74,8 @@ export default function DashboardPage() {
     useState<Project | null>(null);
 
   const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(true);
+  const [isHeaderProfileOpen, setIsHeaderProfileOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
 
   const [projectsLayout, setProjectsLayout] = useState<"table" | "grid">("table");
@@ -98,6 +100,14 @@ export default function DashboardPage() {
     if (!token) {
       window.location.href = "/login";
       return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam === "deployments") {
+      setActiveNav("deployments");
+    } else if (tabParam === "projects") {
+      setActiveNav("projects");
     }
 
     const savedUser = localStorage.getItem("betterhost_user");
@@ -153,19 +163,18 @@ export default function DashboardPage() {
       const normalized = (data || []).map(normalizeProject);
       setProjects(normalized);
 
-      // Fetch all deployments across projects
-      const combinedDeps: { project: Project; deployment: Deployment }[] = [];
-      for (const p of normalized) {
-        try {
-          const deps = await getProjectDeployments(p.id);
-          (deps || []).forEach((d) => {
-            combinedDeps.push({ project: p, deployment: d });
-          });
-        } catch (e) {
-          // ignore
-        }
-      }
-      setAllDeployments(combinedDeps);
+      // Fetch all deployments across projects in parallel
+      const depResults = await Promise.all(
+        normalized.map(async (p) => {
+          try {
+            const deps = await getProjectDeployments(p.id);
+            return (deps || []).map((d) => ({ project: p, deployment: d }));
+          } catch (e) {
+            return [];
+          }
+        })
+      );
+      setAllDeployments(depResults.flat());
     } catch (err: any) {
       console.error("Error fetching projects:", err);
     } finally {
@@ -235,11 +244,39 @@ export default function DashboardPage() {
     ? projectName.trim().toLowerCase().replace(/\s+/g, "-")
     : "my-awesome-project";
 
-  const filteredProjects = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.slug.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const matchingProjects = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return projects.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
+    );
+  }, [projects, searchQuery]);
+
+  const matchingDeployments = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return allDeployments.filter(
+      (item) =>
+        item.deployment.slug.toLowerCase().includes(q) ||
+        item.project.name.toLowerCase().includes(q) ||
+        item.project.slug.toLowerCase().includes(q)
+    );
+  }, [allDeployments, searchQuery]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        const searchInput = document.getElementById("global-search-input");
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Derive user display name & initials from actual DB user
   const userName = user?.firstName
@@ -284,14 +321,14 @@ export default function DashboardPage() {
       {/* ================= SHADCN-STYLE SIDEBAR ================= */}
       <aside className="w-full md:w-64 bg-white border-r border-slate-200/80 flex flex-col shrink-0 select-none">
         {/* Header Branding */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2">
+        <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center">
             <Image
               src="/logo.png"
               alt="BetterHost Logo"
-              width={150}
-              height={38}
-              className="h-8 w-auto object-contain"
+              width={220}
+              height={54}
+              className="h-10 w-auto object-contain scale-110 origin-left"
               priority
             />
           </a>
@@ -319,27 +356,28 @@ export default function DashboardPage() {
 
             {/* Nav 2: Projects Dropdown Menu */}
             <div className="flex flex-col">
-              <button
-                onClick={() => {
-                  setActiveNav("projects");
-                  setIsProjectsDropdownOpen(!isProjectsDropdownOpen);
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              <div
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeNav === "projects"
                     ? "bg-slate-100 text-slate-900"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <a href="/projects" className="flex items-center gap-3 flex-1">
                   <Folder className="w-4 h-4 shrink-0 text-slate-500" />
                   <span>Projects</span>
-                </div>
-                {isProjectsDropdownOpen ? (
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                )}
-              </button>
+                </a>
+                <button
+                  onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
+                  className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {isProjectsDropdownOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
 
               {/* Projects Collapsible Sub-List */}
               {isProjectsDropdownOpen && (
@@ -387,26 +425,8 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Secondary Links & User Profile Footer */}
-          <div className="flex flex-col gap-4 pt-4 border-t border-slate-100">
-            <div className="flex flex-col gap-0.5">
-              <a
-                href="/#changelog"
-                className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span>Changelog</span>
-              </a>
-              <a
-                href="/#support"
-                className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                <HelpCircle className="w-4 h-4 shrink-0" />
-                <span>Support</span>
-              </a>
-            </div>
-
-            {/* User Profile Footer */}
+          {/* User Profile Footer */}
+          <div className="pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
               <div className="flex items-center gap-2.5 truncate">
                 <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[11px] shrink-0">
@@ -421,13 +441,6 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <button
-                onClick={handleLogout}
-                title="Log out"
-                className="text-slate-400 hover:text-red-600 transition-colors cursor-pointer p-1"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
           </div>
         </div>
@@ -452,18 +465,144 @@ export default function DashboardPage() {
               </span>
             </div>
           ) : (
-            <div className="relative w-full max-w-md flex items-center">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5" />
-              <input
-                type="text"
-                placeholder="Search projects, deployments..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-12 py-2 bg-slate-50/70 border border-slate-200/60 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
-              />
-              <div className="absolute right-3 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-semibold text-slate-400">
-                ⌘ K
+            <div className="relative w-full max-w-md">
+              <div className="relative flex items-center">
+                <Search className="w-4 h-4 absolute left-3.5 text-slate-400" />
+                <input
+                  id="global-search-input"
+                  type="text"
+                  placeholder="Search projects, deployments... (⌘K)"
+                  value={searchQuery}
+                  onFocus={() => setIsSearchOpen(true)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsSearchOpen(true);
+                  }}
+                  className="w-full pl-10 pr-10 py-2 bg-slate-50/80 border border-slate-200/80 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 transition-all"
+                />
+                {searchQuery ? (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setIsSearchOpen(false);
+                    }}
+                    className="absolute right-3 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <div className="absolute right-3 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-semibold text-slate-400">
+                    ⌘ K
+                  </div>
+                )}
               </div>
+
+              {/* Global Search Results Dropdown Overlay */}
+              {isSearchOpen && searchQuery.trim().length > 0 && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsSearchOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-50 flex flex-col gap-3 text-left animate-in fade-in zoom-in-95 duration-100 max-h-96 overflow-y-auto">
+                    {matchingProjects.length === 0 && matchingDeployments.length === 0 ? (
+                      <div className="py-8 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
+                        <Search className="w-6 h-6 text-slate-300" />
+                        <span className="text-xs font-medium">
+                          No projects or deployments found for &quot;{searchQuery}&quot;
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Matching Projects */}
+                        {matchingProjects.length > 0 && (
+                          <div className="flex flex-col gap-1">
+                            <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                              <Folder className="w-3.5 h-3.5 text-indigo-500" />
+                              <span>Projects ({matchingProjects.length})</span>
+                            </div>
+                            {matchingProjects.map((p) => (
+                              <a
+                                key={p.id}
+                                href={`/projects/${p.slug}`}
+                                onClick={() => {
+                                  setIsSearchOpen(false);
+                                  setSearchQuery("");
+                                }}
+                                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-indigo-50/60 transition-colors group cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs shrink-0">
+                                    {p.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                      {p.name}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      /projects/{p.slug}
+                                    </span>
+                                  </div>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Matching Deployments */}
+                        {matchingDeployments.length > 0 && (
+                          <div className="flex flex-col gap-1 border-t border-slate-100 pt-2">
+                            <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Deployments ({matchingDeployments.length})</span>
+                            </div>
+                            {matchingDeployments.map((item) => (
+                              <a
+                                key={item.deployment.id}
+                                href={`/projects/${item.project.slug}/${item.deployment.slug}/`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => {
+                                  setIsSearchOpen(false);
+                                  setSearchQuery("");
+                                }}
+                                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors group cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2.5 truncate">
+                                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 font-bold flex items-center justify-center text-xs shrink-0">
+                                    #
+                                  </div>
+                                  <div className="flex flex-col truncate">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                        {item.deployment.slug}
+                                      </span>
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                          item.deployment.status === "READY"
+                                            ? "bg-emerald-50 text-emerald-600"
+                                            : "bg-amber-50 text-amber-600"
+                                        }`}
+                                      >
+                                        {item.deployment.status}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 truncate">
+                                      Project: {item.project.name}
+                                    </span>
+                                  </div>
+                                </div>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 shrink-0" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -473,14 +612,35 @@ export default function DashboardPage() {
               <Bell className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2.5 cursor-pointer select-none">
-              <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[11px]">
-                {userInitials}
-              </div>
-              <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
-                {userName}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <div className="relative">
+              <button
+                onClick={() => setIsHeaderProfileOpen(!isHeaderProfileOpen)}
+                className="flex items-center gap-2.5 cursor-pointer select-none focus:outline-none p-1 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[11px]">
+                  {userInitials}
+                </div>
+                <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
+                  {userName}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {isHeaderProfileOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200/80 rounded-xl shadow-lg p-1.5 z-50 flex flex-col gap-1 text-left animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-2 border-b border-slate-100 flex flex-col">
+                    <span className="text-xs font-bold text-slate-900 truncate">{userName}</span>
+                    <span className="text-[10px] text-slate-400 truncate">{userEmail}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -585,7 +745,7 @@ export default function DashboardPage() {
                         <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                         <span>Loading projects...</span>
                       </div>
-                    ) : filteredProjects.length === 0 ? (
+                    ) : projects.length === 0 ? (
                       <div className="py-12 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                         <Folder className="w-8 h-8 text-slate-300" />
                         <span className="text-xs font-medium">No projects created yet.</span>
@@ -598,7 +758,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="flex flex-col divide-y divide-slate-100">
-                        {filteredProjects.map((proj, idx) => {
+                        {projects.map((proj, idx) => {
                           const initial = proj.name
                             ? proj.name.charAt(0).toUpperCase()
                             : "P";
@@ -865,7 +1025,7 @@ export default function DashboardPage() {
                   <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                   <span>Loading projects workspace...</span>
                 </div>
-              ) : filteredProjects.length === 0 ? (
+              ) : projects.length === 0 ? (
                 <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 flex flex-col items-center justify-center gap-3">
                   <Folder className="w-10 h-10 text-slate-300" />
                   <span className="font-bold text-slate-700 text-sm">No projects found</span>
@@ -894,7 +1054,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                        {filteredProjects.map((p, idx) => {
+                        {projects.map((p, idx) => {
                           const initial = p.name ? p.name.charAt(0).toUpperCase() : "P";
                           const projectDeps = allDeployments.filter((d) => d.project.id === p.id);
                           const lastDep = projectDeps[0];
@@ -1011,7 +1171,7 @@ export default function DashboardPage() {
 
                   {/* Pagination Footer */}
                   <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
-                    <span>Showing 1 to {filteredProjects.length} of {filteredProjects.length} projects</span>
+                    <span>Showing 1 to {projects.length} of {projects.length} projects</span>
                     <div className="flex items-center gap-1">
                       <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
                         <ChevronLeft className="w-4 h-4" />
@@ -1028,7 +1188,7 @@ export default function DashboardPage() {
               ) : (
                 /* Projects Grid View */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProjects.map((p, idx) => (
+                  {projects.map((p, idx) => (
                     <div
                       key={p.id}
                       className="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between gap-6 shadow-xs hover:border-slate-200 transition-all"
@@ -1238,11 +1398,13 @@ export default function DashboardPage() {
                           return (
                             <tr
                               key={item.deployment.id || idx}
-                              onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
-                              className="hover:bg-slate-50/80 transition-colors cursor-pointer"
+                              className="hover:bg-slate-50/80 transition-colors"
                             >
                               {/* Deployment Hash & Latest Pill */}
-                              <td className="py-4 px-6">
+                              <td
+                                className="py-4 px-6 cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
                                     <span className="font-bold text-slate-900">
@@ -1268,7 +1430,10 @@ export default function DashboardPage() {
                               </td>
 
                               {/* Project Avatar & Name */}
-                              <td className="py-4 px-6">
+                              <td
+                                className="py-4 px-6 cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 <div className="flex items-center gap-3 truncate">
                                   <div
                                     className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-xs shrink-0 shadow-xs ${getBadgeColor(
@@ -1288,7 +1453,10 @@ export default function DashboardPage() {
                               </td>
 
                               {/* Environment */}
-                              <td className="py-4 px-6">
+                              <td
+                                className="py-4 px-6 cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                                   Production
@@ -1296,7 +1464,10 @@ export default function DashboardPage() {
                               </td>
 
                               {/* Status Badge */}
-                              <td className="py-4 px-6">
+                              <td
+                                className="py-4 px-6 cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 {item.deployment.status === "READY" ? (
                                   <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100 inline-flex items-center gap-1">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1316,17 +1487,26 @@ export default function DashboardPage() {
                               </td>
 
                               {/* Deployed At */}
-                              <td className="py-4 px-6 text-slate-500 font-medium">
+                              <td
+                                className="py-4 px-6 text-slate-500 font-medium cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 {new Date(item.deployment.createdAt).toLocaleDateString()}
                               </td>
 
                               {/* Duration */}
-                              <td className="py-4 px-6 text-slate-500 font-mono">
+                              <td
+                                className="py-4 px-6 text-slate-500 font-mono cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 1m 17s
                               </td>
 
                               {/* Deployed By User Avatar */}
-                              <td className="py-4 px-6">
+                              <td
+                                className="py-4 px-6 cursor-pointer"
+                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                              >
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[10px]">
                                     {userInitials}
@@ -1338,8 +1518,11 @@ export default function DashboardPage() {
                               </td>
 
                               {/* Actions Dropdown */}
-                              <td className="py-4 px-6 text-right relative">
-                                <div className="flex items-center justify-end">
+                              <td
+                                className="py-4 px-6 text-right relative"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1353,12 +1536,18 @@ export default function DashboardPage() {
                                   </button>
 
                                   {openActionDropdownId === item.deployment.id && (
-                                    <div className="absolute right-6 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left">
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="absolute right-6 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left animate-in fade-in zoom-in-95 duration-100"
+                                    >
                                       <a
                                         href={`${API_BASE_URL}/projects/${item.project.slug}/${item.deployment.slug}/`}
                                         target="_blank"
                                         rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenActionDropdownId(null);
+                                        }}
                                         className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors"
                                       >
                                         <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
@@ -1378,6 +1567,7 @@ export default function DashboardPage() {
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
+                                          setOpenActionDropdownId(null);
                                           handleDeleteDeployment(item.deployment.id);
                                         }}
                                         className="w-full px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 mt-1"

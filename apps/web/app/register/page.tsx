@@ -60,7 +60,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500 selection:text-white flex flex-col">
       {/* Top Navbar */}
       <header className="w-full border-b border-slate-100 bg-white">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <a
             href="/"
             className="flex items-center gap-2 hover:opacity-90 transition-opacity"
@@ -68,9 +68,9 @@ export default function RegisterPage() {
             <Image
               src="/logo.png"
               alt="BetterHost Logo"
-              width={180}
-              height={44}
-              className="h-10 w-auto object-contain"
+              width={220}
+              height={54}
+              className="h-12 sm:h-14 md:h-16 w-auto object-contain scale-110 origin-left"
               priority
             />
           </a>

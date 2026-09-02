@@ -76,6 +76,10 @@ func (s *Service) ListAllDeployments(ctx context.Context) ([]DeploymentWithProje
 	return s.repository.FindAll(ctx)
 }
 
+func (s *Service) ListAllDeploymentsForUser(ctx context.Context, userID uuid.UUID) ([]DeploymentWithProject, error) {
+	return s.repository.FindByUserID(ctx, userID)
+}
+
 func (s *Service) ListDeploymentsByProjectID(ctx context.Context, projectID uuid.UUID) ([]Deployment, error) {
 	return s.repository.FindByProjectID(ctx, projectID)
 }
@@ -101,10 +105,11 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 		targetDir = filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug)))
 	}
 
-	dbFiles, _ := s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+	// Attempt streaming restoration from DB to disk
+	restoredCount, _ := s.repository.RestoreFilesToDisk(ctx, dep.ID, targetDir)
 
-	// If files are missing from DB (older deployment created before DB persistence was added), backfill DB from disk if disk files exist
-	if len(dbFiles) == 0 {
+	// If files were missing from DB, check if disk already has them and backfill DB
+	if restoredCount == 0 {
 		if fi, statErr := os.Stat(targetDir); statErr == nil && fi.IsDir() {
 			_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, walkErr error) error {
 				if walkErr != nil || d.IsDir() {
@@ -121,18 +126,11 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 				}
 				return nil
 			})
-			dbFiles, _ = s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+			restoredCount, _ = s.repository.RestoreFilesToDisk(ctx, dep.ID, targetDir)
 		}
 	}
 
-	if len(dbFiles) > 0 {
-		_ = os.MkdirAll(targetDir, 0755)
-		for _, f := range dbFiles {
-			filePath := filepath.Join(targetDir, filepath.FromSlash(f.Path))
-			_ = os.MkdirAll(filepath.Dir(filePath), 0755)
-			_ = os.WriteFile(filePath, f.Content, 0644)
-		}
-
+	if restoredCount > 0 {
 		autoFlattenToEntrypoint(targetDir)
 		entrypoint := "index.html"
 		if idxPath, _, found := resolveIndexFile(targetDir); found {

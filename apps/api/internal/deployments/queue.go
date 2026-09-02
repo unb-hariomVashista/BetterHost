@@ -202,17 +202,31 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
 			return
 		}
-
-		relPath := filepath.ToSlash(cleanPath)
-		if err := wp.repository.SaveDeploymentFile(ctx, job.DeploymentID, relPath, contentBytes, ""); err != nil {
-			log.Printf("Warning: failed to save deployment file %s to DB: %v", relPath, err)
-		}
 	}
 
 	// Step 2: Auto-flatten nested parent folders to find entrypoint
 	autoFlattenToEntrypoint(targetDir)
 
-	// Step 3: Entrypoint Detection
+	// Step 3: Persist finalized files to DB after flattening
+	_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(targetDir, path)
+		if relErr != nil {
+			return nil
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr == nil {
+			relPath := filepath.ToSlash(rel)
+			if err := wp.repository.SaveDeploymentFile(ctx, job.DeploymentID, relPath, content, ""); err != nil {
+				log.Printf("Warning: failed to save deployment file %s to DB: %v", relPath, err)
+			}
+		}
+		return nil
+	})
+
+	// Step 4: Entrypoint Detection
 	entrypoint := "index.html"
 	foundEntrypoint := false
 	candidates := []string{"index.html", "index.php", "index.htm", "default.html"}
@@ -249,7 +263,7 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 		log.Printf("Warning: no index.html or index.php entrypoint found at root of deployment %s", job.DeploymentID)
 	}
 
-	// Step 4: Mark Deployment as READY
+	// Step 5: Mark Deployment as READY
 	if err := wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusReady, targetDir, entrypoint); err != nil {
 		log.Printf("Failed to set status READY for deployment %s: %v", job.DeploymentID, err)
 		return
