@@ -132,6 +132,12 @@ export interface Deployment {
 export interface DeploymentWithProject extends Deployment {
   projectName: string;
   projectSlug: string;
+  deployment: Deployment;
+  project: {
+    id: string;
+    name: string;
+    slug: string;
+  };
 }
 
 export async function getAllDeployments(): Promise<DeploymentWithProject[]> {
@@ -148,7 +154,42 @@ export async function getAllDeployments(): Promise<DeploymentWithProject[]> {
     throw new Error("Failed to fetch deployments");
   }
 
-  return res.json();
+  const raw: any[] = await res.json();
+
+  return (raw || []).map((item) => {
+    const dep: DeploymentWithProject = {
+      ...item,
+      id: item.id || item.deployment?.id || "",
+      projectId: item.projectId || item.project?.id || "",
+      slug: item.slug || item.deployment?.slug || "",
+      entrypoint: item.entrypoint || item.deployment?.entrypoint || "index.html",
+      artifactPath: item.artifactPath || item.deployment?.artifactPath || "",
+      status: item.status || item.deployment?.status || "READY",
+      createdAt: item.createdAt || item.deployment?.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || item.deployment?.updatedAt || new Date().toISOString(),
+      projectName: item.projectName || item.project?.name || "Project",
+      projectSlug: item.projectSlug || item.project?.slug || "project",
+    };
+
+    dep.deployment = item.deployment || {
+      id: dep.id,
+      projectId: dep.projectId,
+      slug: dep.slug,
+      entrypoint: dep.entrypoint,
+      artifactPath: dep.artifactPath,
+      status: dep.status,
+      createdAt: dep.createdAt,
+      updatedAt: dep.updatedAt,
+    };
+
+    dep.project = item.project || {
+      id: dep.projectId,
+      name: dep.projectName,
+      slug: dep.projectSlug,
+    };
+
+    return dep;
+  });
 }
 
 export async function uploadDeploymentZip(
