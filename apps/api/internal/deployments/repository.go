@@ -212,3 +212,64 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM deployments WHERE id = $1`, id)
 	return err
 }
+
+type DeploymentFileRecord struct {
+	ID           uuid.UUID
+	DeploymentID uuid.UUID
+	Path         string
+	Content      []byte
+	MimeType     string
+}
+
+func (r *Repository) SaveDeploymentFile(
+	ctx context.Context,
+	deploymentID uuid.UUID,
+	path string,
+	content []byte,
+	mimeType string,
+) error {
+	_, err := r.db.Exec(
+		ctx,
+		`
+		INSERT INTO deployment_files (deployment_id, path, content, mime_type)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (deployment_id, path)
+		DO UPDATE SET content = EXCLUDED.content, mime_type = EXCLUDED.mime_type
+		`,
+		deploymentID,
+		path,
+		content,
+		mimeType,
+	)
+	return err
+}
+
+func (r *Repository) GetDeploymentFilesByDeploymentID(
+	ctx context.Context,
+	deploymentID uuid.UUID,
+) ([]DeploymentFileRecord, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT id, deployment_id, path, content, mime_type
+		FROM deployment_files
+		WHERE deployment_id = $1
+		`,
+		deploymentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []DeploymentFileRecord
+	for rows.Next() {
+		var f DeploymentFileRecord
+		if err := rows.Scan(&f.ID, &f.DeploymentID, &f.Path, &f.Content, &f.MimeType); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+
+	return files, nil
+}

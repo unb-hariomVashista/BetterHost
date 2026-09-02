@@ -34,3 +34,15 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS deployment_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deployment_id UUID NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    content BYTEA NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT deployment_files_deployment_path_unique UNIQUE (deployment_id, path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_deployment_files_lookup ON deployment_files (deployment_id, path);

@@ -125,28 +125,31 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 			return
 		}
 
-		outFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-		if err != nil {
-			log.Printf("Failed to create file %s: %v", destPath, err)
-			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
-			return
-		}
-
 		inFile, err := file.Open()
 		if err != nil {
-			outFile.Close()
 			log.Printf("Failed to open zip file entry %s: %v", file.Name, err)
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
 			return
 		}
 
-		_, err = io.Copy(outFile, inFile)
+		contentBytes, err := io.ReadAll(inFile)
 		inFile.Close()
-		outFile.Close()
 		if err != nil {
-			log.Printf("Failed to copy zip content to %s: %v", destPath, err)
+			log.Printf("Failed to read zip file entry %s: %v", file.Name, err)
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
 			return
+		}
+
+		if err := os.WriteFile(destPath, contentBytes, file.Mode()); err != nil {
+			log.Printf("Failed to write file %s: %v", destPath, err)
+			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
+			return
+		}
+
+		// Save to PostgreSQL for persistent storage across container restarts
+		relPath := filepath.ToSlash(cleanPath)
+		if err := wp.repository.SaveDeploymentFile(ctx, job.DeploymentID, relPath, contentBytes, ""); err != nil {
+			log.Printf("Warning: failed to save deployment file %s to DB: %v", relPath, err)
 		}
 	}
 

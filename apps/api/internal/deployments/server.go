@@ -1,6 +1,7 @@
 package deployments
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -207,6 +208,33 @@ func resolveFilePath(artifactPath, subpath string) (string, os.FileInfo, bool) {
 	return "", nil, false
 }
 
+func (s *Server) restoreDeploymentFilesFromDB(ctx context.Context, dep *Deployment) bool {
+	dbFiles, err := s.deploymentService.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+	if err != nil || len(dbFiles) == 0 {
+		return false
+	}
+
+	targetDir := normalizeArtifactPath(dep.ArtifactPath)
+	if targetDir == "" {
+		targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
+	}
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return false
+	}
+
+	for _, file := range dbFiles {
+		filePath := filepath.Join(targetDir, filepath.FromSlash(file.Path))
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			continue
+		}
+		os.WriteFile(filePath, file.Content, 0644)
+	}
+
+	log.Printf("[Self-Healing Storage] Restored %d files from PostgreSQL database for deployment %s to %s", len(dbFiles), dep.Slug, targetDir)
+	return true
+}
+
 func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request) {
 	// Path pattern: /projects/{projectSlug} or /projects/{projectSlug}/{deploymentSlug} or /projects/{projectSlug}/{deploymentSlug}/*
 	rawPath := strings.TrimPrefix(r.URL.Path, "/projects/")
@@ -302,6 +330,12 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 	}
 
 	targetFilePath, _, found := resolveFilePath(dep.ArtifactPath, subpath)
+	if !found {
+		if s.restoreDeploymentFilesFromDB(r.Context(), dep) {
+			targetFilePath, _, found = resolveFilePath(dep.ArtifactPath, subpath)
+		}
+	}
+
 	if !found {
 		normPath := normalizeArtifactPath(dep.ArtifactPath)
 		log.Printf("[ServeProjectOrDeployment] File not found: subpath=%q, DB artifactPath=%q, normalizedPath=%q", subpath, dep.ArtifactPath, normPath)
