@@ -18,22 +18,11 @@ import (
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+		origin := strings.TrimSuffix(r.Header.Get("Origin"), "/")
 
 		if origin != "" {
-			if allowedOrigin != "" && allowedOrigin != "*" {
-				if origin == allowedOrigin || strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
-					w.Header().Set("Access-Control-Allow-Credentials", "true")
-				} else {
-					w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-					w.Header().Set("Access-Control-Allow-Credentials", "true")
-				}
-			} else {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
