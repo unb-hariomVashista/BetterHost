@@ -3,6 +3,8 @@ package deployments
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -83,4 +85,41 @@ func (s *Service) GetDeploymentBySlugs(ctx context.Context, projectSlug, deploym
 
 func (s *Service) DeleteDeployment(ctx context.Context, id uuid.UUID) error {
 	return s.repository.Delete(ctx, id)
+}
+
+func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deployment, error) {
+	dep, err := s.repository.FindByID(ctx, deploymentID)
+	if err != nil || dep == nil {
+		return nil, fmt.Errorf("deployment not found")
+	}
+
+	_ = s.repository.UpdateStatus(ctx, dep.ID, StatusQueued, dep.ArtifactPath, dep.Entrypoint)
+
+	dbFiles, _ := s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+	if len(dbFiles) > 0 {
+		targetDir := normalizeArtifactPath(dep.ArtifactPath)
+		if targetDir == "" {
+			targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
+		}
+
+		_ = os.MkdirAll(targetDir, 0755)
+		for _, f := range dbFiles {
+			filePath := filepath.Join(targetDir, filepath.FromSlash(f.Path))
+			_ = os.MkdirAll(filepath.Dir(filePath), 0755)
+			_ = os.WriteFile(filePath, f.Content, 0644)
+		}
+
+		autoFlattenToEntrypoint(targetDir)
+		entrypoint := "index.html"
+		if idxPath, _, found := resolveIndexFile(targetDir); found {
+			rel, _ := filepath.Rel(targetDir, idxPath)
+			entrypoint = rel
+		}
+
+		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusReady, targetDir, entrypoint)
+	} else {
+		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusFailed, "", "")
+	}
+
+	return s.repository.FindByID(ctx, deploymentID)
 }

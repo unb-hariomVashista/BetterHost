@@ -103,6 +103,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/deployments", deploymentHandler.ListAll)
 	mux.HandleFunc("POST /api/v1/projects/{projectId}/deployments", deploymentHandler.CreateWithZip)
 	mux.HandleFunc("GET /api/v1/projects/{projectId}/deployments", deploymentHandler.ListByProject)
+	mux.HandleFunc("POST /api/v1/deployments/{id}/redeploy", deploymentHandler.Redeploy)
 	mux.HandleFunc("DELETE /api/v1/deployments/{id}", deploymentHandler.Delete)
 
 	// Static Project & Deployment Route Serving (/projects/my-portfolio or /projects/my-portfolio/deploy-1)

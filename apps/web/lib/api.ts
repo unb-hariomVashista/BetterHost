@@ -229,4 +229,22 @@ export async function deleteDeployment(deploymentId: string): Promise<void> {
   }
 }
 
+export async function redeployDeployment(deploymentId: string): Promise<Deployment> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("betterhost_token") : null;
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/deployments/${deploymentId}/redeploy`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || "Failed to redeploy");
+  }
+
+  return res.json();
+}
+
 

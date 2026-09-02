@@ -75,6 +75,7 @@ type DeploymentWithProject struct {
 }
 
 func (r *Repository) FindAll(ctx context.Context) ([]DeploymentWithProject, error) {
+	_ = r.CleanupStaleDeployments(ctx)
 	rows, err := r.db.Query(
 		ctx,
 		`
@@ -151,11 +152,53 @@ func (r *Repository) FindByProjectID(ctx context.Context, projectID uuid.UUID) (
 	return deps, nil
 }
 
+func (r *Repository) CleanupStaleDeployments(ctx context.Context) error {
+	_, err := r.db.Exec(
+		ctx,
+		`
+		UPDATE deployments
+		SET status = 'FAILED', updated_at = NOW()
+		WHERE status IN ('QUEUED', 'DEPLOYING', 'BUILDING')
+		  AND updated_at < NOW() - INTERVAL '2 minutes'
+		`,
+	)
+	return err
+}
+
+func (r *Repository) FindByID(ctx context.Context, id uuid.UUID) (*Deployment, error) {
+	var dep Deployment
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT id, project_id, slug, entrypoint, artifact_path, status, created_at, updated_at
+		FROM deployments
+		WHERE id = $1
+		`,
+		id,
+	).Scan(
+		&dep.ID,
+		&dep.ProjectID,
+		&dep.Slug,
+		&dep.Entrypoint,
+		&dep.ArtifactPath,
+		&dep.Status,
+		&dep.CreatedAt,
+		&dep.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dep, nil
+}
+
 func (r *Repository) FindByProjectSlugAndDeploymentSlug(
 	ctx context.Context,
 	projectSlug string,
 	deploymentSlug string,
 ) (*Deployment, error) {
+	_ = r.CleanupStaleDeployments(ctx)
 	var dep Deployment
 
 	err := r.db.QueryRow(

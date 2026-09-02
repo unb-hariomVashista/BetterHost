@@ -68,8 +68,63 @@ func getStorageDir() string {
 	return "storage"
 }
 
+func autoFlattenToEntrypoint(targetDir string) {
+	os.RemoveAll(filepath.Join(targetDir, "__MACOSX"))
+
+	candidates := []string{"index.html", "index.php", "index.htm", "default.html"}
+	var bestDir string
+	shallowestDepth := 999
+
+	_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || name == "__MACOSX" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		filename := strings.ToLower(d.Name())
+		for _, c := range candidates {
+			if filename == c {
+				dir := filepath.Dir(path)
+				rel, _ := filepath.Rel(targetDir, dir)
+				depth := 0
+				if rel != "." {
+					depth = len(strings.Split(filepath.ToSlash(rel), "/"))
+				}
+				if depth < shallowestDepth {
+					shallowestDepth = depth
+					bestDir = dir
+				}
+			}
+		}
+		return nil
+	})
+
+	if bestDir != "" && bestDir != targetDir {
+		entries, err := os.ReadDir(bestDir)
+		if err == nil {
+			for _, e := range entries {
+				oldP := filepath.Join(bestDir, e.Name())
+				newP := filepath.Join(targetDir, e.Name())
+				os.Rename(oldP, newP)
+			}
+		}
+	}
+}
+
 func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	defer os.Remove(job.ZipFilePath)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic encountered during deployment %s: %v", job.DeploymentID, r)
+			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
+		}
+	}()
 
 	// Step 1: Update status to DEPLOYING
 	if err := wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusDeploying, "", ""); err != nil {
@@ -96,7 +151,6 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 
 	// Extract files with Zip-Slip protection
 	for _, file := range reader.File {
-		// Clean and check relative path (Zip Slip attack defense)
 		rawPath := strings.TrimPrefix(strings.TrimPrefix(file.Name, "/"), "\\")
 		cleanPath := filepath.Clean(rawPath)
 		if strings.HasPrefix(cleanPath, "..") {
@@ -105,9 +159,12 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 			return
 		}
 
+		if strings.HasPrefix(cleanPath, "__MACOSX") || strings.HasPrefix(filepath.Base(cleanPath), "._") {
+			continue
+		}
+
 		destPath := filepath.Join(targetDir, cleanPath)
 
-		// Verify target path remains within targetDir
 		if !strings.HasPrefix(destPath, filepath.Clean(targetDir)) {
 			log.Printf("Security alert: Path traversal detected for %s", destPath)
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
@@ -146,41 +203,16 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 			return
 		}
 
-		// Save to PostgreSQL for persistent storage across container restarts
 		relPath := filepath.ToSlash(cleanPath)
 		if err := wp.repository.SaveDeploymentFile(ctx, job.DeploymentID, relPath, contentBytes, ""); err != nil {
 			log.Printf("Warning: failed to save deployment file %s to DB: %v", relPath, err)
 		}
 	}
 
-	// Clean up macOS metadata folder __MACOSX if present
-	os.RemoveAll(filepath.Join(targetDir, "__MACOSX"))
+	// Step 2: Auto-flatten nested parent folders to find entrypoint
+	autoFlattenToEntrypoint(targetDir)
 
-	// Step 2: Post-extraction auto-flattening if zip contained a single wrapper directory (e.g. CBC/)
-	entries, err := os.ReadDir(targetDir)
-	var validDirs []os.DirEntry
-	if err == nil {
-		for _, entry := range entries {
-			if !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "__MACOSX" {
-				validDirs = append(validDirs, entry)
-			}
-		}
-	}
-
-	if len(validDirs) == 1 && validDirs[0].IsDir() {
-		singleFolder := filepath.Join(targetDir, validDirs[0].Name())
-		subEntries, subErr := os.ReadDir(singleFolder)
-		if subErr == nil {
-			for _, se := range subEntries {
-				oldPath := filepath.Join(singleFolder, se.Name())
-				newPath := filepath.Join(targetDir, se.Name())
-				os.Rename(oldPath, newPath)
-			}
-			os.RemoveAll(singleFolder)
-		}
-	}
-
-	// Step 3: Multi-Format & Case-Insensitive Entrypoint Detection
+	// Step 3: Entrypoint Detection
 	entrypoint := "index.html"
 	foundEntrypoint := false
 	candidates := []string{"index.html", "index.php", "index.htm", "default.html"}
@@ -199,27 +231,16 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 		}
 	}
 
-	// Fallback: Check inside top-level subfolders if entrypoint was not found at root
+	// Fallback to any html/php file if standard entrypoint name not found
 	if !foundEntrypoint {
 		for _, re := range rootEntries {
-			if re.IsDir() && !strings.HasPrefix(re.Name(), ".") && re.Name() != "__MACOSX" {
-				subDir := filepath.Join(targetDir, re.Name())
-				subDirEntries, _ := os.ReadDir(subDir)
-				for _, candidate := range candidates {
-					for _, sde := range subDirEntries {
-						if !sde.IsDir() && strings.EqualFold(sde.Name(), candidate) {
-							entrypoint = filepath.ToSlash(filepath.Join(re.Name(), sde.Name()))
-							foundEntrypoint = true
-							break
-						}
-					}
-					if foundEntrypoint {
-						break
-					}
+			if !re.IsDir() {
+				ext := strings.ToLower(filepath.Ext(re.Name()))
+				if ext == ".html" || ext == ".php" || ext == ".htm" {
+					entrypoint = re.Name()
+					foundEntrypoint = true
+					break
 				}
-			}
-			if foundEntrypoint {
-				break
 			}
 		}
 	}

@@ -147,3 +147,22 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) Redeploy(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid deployment id", http.StatusBadRequest)
+		return
+	}
+
+	dep, err := h.service.Redeploy(r.Context(), id)
+	if err != nil {
+		log.Printf("error redeploying: %v", err)
+		http.Error(w, "failed to redeploy", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dep)
+}

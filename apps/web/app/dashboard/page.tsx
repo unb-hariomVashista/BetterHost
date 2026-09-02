@@ -33,6 +33,7 @@ import {
   List,
   Trash2,
   LogOut,
+  RotateCcw,
 } from "lucide-react";
 import {
   createProject,
@@ -40,6 +41,7 @@ import {
   getProjectDeployments,
   deleteProject,
   deleteDeployment,
+  redeployDeployment,
   getCurrentUser,
   API_BASE_URL,
   Project,
@@ -125,8 +127,28 @@ export default function DashboardPage() {
     fetchProjects();
   }, []);
 
-  const fetchProjects = async () => {
-    setLoadingProjects(true);
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    const hasPending = allDeployments.some(
+      (item) =>
+        item.deployment.status === "QUEUED" ||
+        item.deployment.status === "DEPLOYING" ||
+        item.deployment.status === "BUILDING"
+    );
+
+    if (hasPending) {
+      interval = setInterval(() => {
+        fetchProjects(false);
+      }, 3000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [allDeployments]);
+
+  const fetchProjects = async (showSpinner = true) => {
+    if (showSpinner) setLoadingProjects(true);
     try {
       const data = await getProjects();
       const normalized = (data || []).map(normalizeProject);
@@ -148,7 +170,16 @@ export default function DashboardPage() {
     } catch (err: any) {
       console.error("Error fetching projects:", err);
     } finally {
-      setLoadingProjects(false);
+      if (showSpinner) setLoadingProjects(false);
+    }
+  };
+
+  const handleRedeployDeployment = async (deploymentId: string) => {
+    try {
+      await redeployDeployment(deploymentId);
+      await fetchProjects(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to redeploy deployment");
     }
   };
 
@@ -1332,6 +1363,17 @@ export default function DashboardPage() {
                                         <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
                                         <span>Visit Site</span>
                                       </a>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenActionDropdownId(null);
+                                          handleRedeployDeployment(item.deployment.id);
+                                        }}
+                                        className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Redeploy</span>
+                                      </button>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();

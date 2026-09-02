@@ -31,6 +31,7 @@ import {
   getAllDeployments,
   getProjects,
   deleteDeployment,
+  redeployDeployment,
   API_BASE_URL,
   DeploymentWithProject,
   Project,
@@ -62,11 +63,25 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
       }
     }
 
-    loadData();
-  }, [id]);
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (
+      deploymentItem &&
+      (deploymentItem.status === "QUEUED" ||
+        deploymentItem.status === "DEPLOYING" ||
+        deploymentItem.status === "BUILDING")
+    ) {
+      interval = setInterval(() => {
+        loadData(false);
+      }, 3000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [deploymentItem?.status, id]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError(null);
     try {
       const [allDeps, projs] = await Promise.all([
@@ -88,6 +103,19 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
     } catch (err: any) {
       console.error("Error loading deployment inspection", err);
       setError(err.message || "Failed to load deployment inspection details");
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  };
+
+  const handleRedeploy = async () => {
+    if (!deploymentItem) return;
+    try {
+      setLoading(true);
+      await redeployDeployment(deploymentItem.id);
+      await loadData(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to redeploy deployment");
     } finally {
       setLoading(false);
     }
@@ -327,6 +355,14 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                   </div>
 
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleRedeploy}
+                      className="flex items-center gap-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer bg-white"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Redeploy</span>
+                    </button>
+
                     <button
                       onClick={handleDelete}
                       className="flex items-center gap-1.5 border border-red-200 hover:bg-red-50 text-red-600 text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer bg-white"
