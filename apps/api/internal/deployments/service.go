@@ -144,6 +144,7 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 	} else {
 		log.Printf("Redeploy failed: No deployment files found in DB or disk for deployment %s (%s)", dep.ID, dep.Slug)
 		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusFailed, "", "")
+		return nil, fmt.Errorf("no archived deployment files found in database or disk for '%s'. Please upload a new zip file for this deployment", dep.Slug)
 	}
 
 	return s.repository.FindByID(ctx, deploymentID)
