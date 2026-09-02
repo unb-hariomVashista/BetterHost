@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -20,14 +21,19 @@ func corsMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
 
-		if allowedOrigin != "" {
-			if origin == allowedOrigin {
+		if origin != "" {
+			if allowedOrigin != "" && allowedOrigin != "*" {
+				if origin == allowedOrigin || strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				}
+			} else {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
-		} else if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
