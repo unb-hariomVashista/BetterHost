@@ -63,6 +63,9 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
       }
     }
 
+    loadData();
+  }, [id]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (

@@ -33,7 +33,6 @@ import {
   List,
   Trash2,
   LogOut,
-  RotateCcw,
 } from "lucide-react";
 import {
   createProject,
