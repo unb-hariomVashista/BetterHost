@@ -67,7 +67,7 @@ func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Proj
 		`
 		SELECT id, user_id, name, slug, created_at, updated_at
 		FROM projects
-		WHERE user_id = $1 OR user_id IS NULL
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 		`,
 		userID,

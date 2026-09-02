@@ -126,7 +126,7 @@ func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Depl
 		       p.name, p.slug
 		FROM deployments d
 		JOIN projects p ON p.id = d.project_id
-		WHERE p.user_id = $1 OR p.user_id IS NULL
+		WHERE p.user_id = $1
 		ORDER BY d.created_at DESC
 		`,
 		userID,

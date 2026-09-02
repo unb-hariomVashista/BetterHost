@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+UPDATE projects SET user_id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1) WHERE user_id IS NULL AND (SELECT COUNT(*) FROM users) > 0;
 
 CREATE TABLE IF NOT EXISTS deployments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
