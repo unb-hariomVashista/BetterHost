@@ -3,6 +3,7 @@ package deployments
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,13 +96,36 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 
 	_ = s.repository.UpdateStatus(ctx, dep.ID, StatusQueued, dep.ArtifactPath, dep.Entrypoint)
 
-	dbFiles, _ := s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
-	if len(dbFiles) > 0 {
-		targetDir := normalizeArtifactPath(dep.ArtifactPath)
-		if targetDir == "" {
-			targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
-		}
+	targetDir := normalizeArtifactPath(dep.ArtifactPath)
+	if targetDir == "" {
+		targetDir = filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug)))
+	}
 
+	dbFiles, _ := s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+
+	// If files are missing from DB (older deployment created before DB persistence was added), backfill DB from disk if disk files exist
+	if len(dbFiles) == 0 {
+		if fi, statErr := os.Stat(targetDir); statErr == nil && fi.IsDir() {
+			_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, walkErr error) error {
+				if walkErr != nil || d.IsDir() {
+					return nil
+				}
+				rel, relErr := filepath.Rel(targetDir, path)
+				if relErr != nil {
+					return nil
+				}
+				content, readErr := os.ReadFile(path)
+				if readErr == nil {
+					relPath := filepath.ToSlash(rel)
+					_ = s.repository.SaveDeploymentFile(ctx, dep.ID, relPath, content, "")
+				}
+				return nil
+			})
+			dbFiles, _ = s.repository.GetDeploymentFilesByDeploymentID(ctx, dep.ID)
+		}
+	}
+
+	if len(dbFiles) > 0 {
 		_ = os.MkdirAll(targetDir, 0755)
 		for _, f := range dbFiles {
 			filePath := filepath.Join(targetDir, filepath.FromSlash(f.Path))
@@ -118,6 +142,7 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 
 		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusReady, targetDir, entrypoint)
 	} else {
+		log.Printf("Redeploy failed: No deployment files found in DB or disk for deployment %s (%s)", dep.ID, dep.Slug)
 		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusFailed, "", "")
 	}
 

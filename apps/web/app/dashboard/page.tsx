@@ -173,7 +173,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRedeployDeployment = async (deploymentId: string) => {
+  const handleRedeployDeployment = async (e: React.MouseEvent, deploymentId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       await redeployDeployment(deploymentId);
       await fetchProjects(false);
@@ -1366,7 +1368,7 @@ export default function DashboardPage() {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setOpenActionDropdownId(null);
-                                          handleRedeployDeployment(item.deployment.id);
+                                          handleRedeployDeployment(e, item.deployment.id);
                                         }}
                                         className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
                                       >

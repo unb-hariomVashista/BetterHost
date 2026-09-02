@@ -111,7 +111,11 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
     }
   };
 
-  const handleRedeploy = async () => {
+  const handleRedeploy = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!deploymentItem) return;
     try {
       setLoading(true);
