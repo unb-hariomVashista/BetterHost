@@ -12,6 +12,11 @@ module.exports = {
         PORT: process.env.PORT || "8085",
         ENV: "production",
         STORAGE_DIR: "./storage"
+      },
+      env_production: {
+        PORT: process.env.PORT || "8085",
+        ENV: "production",
+        STORAGE_DIR: "./storage"
       }
     },
     {
@@ -24,6 +29,10 @@ module.exports = {
       watch: false,
       max_memory_restart: "500M",
       env: {
+        PORT: process.env.WEB_PORT || "3005",
+        NODE_ENV: "production"
+      },
+      env_production: {
         PORT: process.env.WEB_PORT || "3005",
         NODE_ENV: "production"
       }
