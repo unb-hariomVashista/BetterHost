@@ -1,7 +1,25 @@
 # Caddyfile for BetterHost VPS Deployment
-# Replace 'yourdomain.com' with your actual domain name!
 
-# Option 1: Separate Subdomains (Recommended)
+# ==============================================================================
+# OPTION 1: Testing via VPS IP Address (Before domain allotment)
+# Replace '1.2.3.4' with your actual VPS IP address!
+# ==============================================================================
+# http://1.2.3.4 {
+#     handle /api/* {
+#         reverse_proxy localhost:8085
+#     }
+#     handle /projects/* {
+#         reverse_proxy localhost:8085
+#     }
+#     handle {
+#         reverse_proxy localhost:3005
+#     }
+# }
+
+# ==============================================================================
+# OPTION 2: Production Subdomains (With Domain + Free Auto SSL HTTPS)
+# Replace 'yourdomain.com' with your actual domain name!
+# ==============================================================================
 # Frontend Web App
 app.yourdomain.com {
     reverse_proxy localhost:3005
@@ -11,22 +29,3 @@ app.yourdomain.com {
 api.yourdomain.com {
     reverse_proxy localhost:8085
 }
-
-# Option 2: Single Domain Setup (Alternative)
-# If using single domain, append this block to your existing Caddyfile:
-# yourdomain.com {
-#     # Route API requests to Go API
-#     handle /api/* {
-#         reverse_proxy localhost:8085
-#     }
-#
-#     # Route Static Deployment Preview URLs to Go API
-#     handle /projects/* {
-#         reverse_proxy localhost:8085
-#     }
-#
-#     # Route all other web UI requests to Next.js Frontend
-#     handle {
-#         reverse_proxy localhost:3005
-#     }
-# }
