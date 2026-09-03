@@ -10,6 +10,7 @@ import {
   File,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   FolderArchive,
 } from "lucide-react";
@@ -121,6 +122,18 @@ export default function ZipPreviewModal({
 
     return entries;
   };
+
+  const hasIndexHtml = fileList.some((item) => {
+    const name = item.name.toLowerCase();
+    return (
+      name === "index.html" ||
+      name === "index.htm" ||
+      name === "index.php" ||
+      name.endsWith("/index.html") ||
+      name.endsWith("/index.htm") ||
+      name.endsWith("/index.php")
+    );
+  });
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,13 +283,26 @@ export default function ZipPreviewModal({
                   <span className="text-xs font-semibold text-slate-700">
                     Click to browse or drop your .zip file
                   </span>
-                  <span className="text-[10px] text-slate-400">
-                    Must contain index.html in root folder
+                  <span className="text-[11px] text-amber-700 font-medium mt-0.5">
+                    ⚠️ Required: <code className="font-mono bg-amber-100/80 px-1 py-0.5 rounded font-bold">index.html</code> must be present at project root
                   </span>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Warning banner if index.html is missing */}
+          {selectedFile && !loadingPreview && fileList.length > 0 && !hasIndexHtml && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <span className="font-bold text-amber-900">Warning: "index.html" not detected at project root</span>
+                <span className="text-[11px] text-amber-800 leading-relaxed">
+                  Please ensure your static entrypoint file is named <code className="font-mono bg-amber-100 px-1 py-0.5 rounded font-bold">index.html</code> and located directly in the root of your ZIP archive (not inside a subfolder).
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Client-Side File Preview Tree */}
           {loadingPreview && (
