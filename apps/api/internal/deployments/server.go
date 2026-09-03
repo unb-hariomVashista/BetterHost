@@ -205,6 +205,26 @@ func resolveFilePath(artifactPath, subpath string) (string, os.FileInfo, bool) {
 		}
 	}
 
+	// 4. Recursive filename fallback search if target asset is not found
+	fileName := filepath.Base(subpath)
+	if fileName != "." && fileName != "" {
+		var foundPath string
+		_ = filepath.WalkDir(artifactPath, func(p string, d os.DirEntry, err error) error {
+			if err != nil || foundPath != "" {
+				return nil
+			}
+			if !d.IsDir() && strings.EqualFold(d.Name(), fileName) {
+				foundPath = p
+			}
+			return nil
+		})
+		if foundPath != "" {
+			if fi, err := os.Stat(foundPath); err == nil {
+				return foundPath, fi, true
+			}
+		}
+	}
+
 	return "", nil, false
 }
 
@@ -336,15 +356,35 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 
 	ext := strings.ToLower(filepath.Ext(targetFilePath))
 
-	// Strip PHP script tags for static previews so raw PHP code/comments don't leak into browser DOM
+	// Strip PHP script tags for static previews and inject base tag for relative asset resolution
 	if ext == ".php" || ext == ".html" || ext == ".htm" {
 		contentBytes, readErr := os.ReadFile(targetFilePath)
-		if readErr == nil && (strings.Contains(string(contentBytes), "<?php") || strings.Contains(string(contentBytes), "<?=")) {
-			cleaned := phpTagRegex.ReplaceAll(contentBytes, nil)
-			cleaned = phpShortTagRegex.ReplaceAll(cleaned, nil)
+		if readErr == nil {
+			htmlStr := string(contentBytes)
+			if strings.Contains(htmlStr, "<?php") || strings.Contains(htmlStr, "<?=") {
+				htmlStr = string(phpTagRegex.ReplaceAll([]byte(htmlStr), nil))
+				htmlStr = string(phpShortTagRegex.ReplaceAll([]byte(htmlStr), nil))
+			}
+
+			// Inject base tag for relative asset resolution if not present
+			if !strings.Contains(strings.ToLower(htmlStr), "<base ") {
+				baseHref := fmt.Sprintf(`<base href="/projects/%s/%s/">`, projectSlug, dep.Slug)
+				if idx := strings.Index(strings.ToLower(htmlStr), "<head>"); idx != -1 {
+					htmlStr = htmlStr[:idx+6] + "\n  " + baseHref + htmlStr[idx+6:]
+				} else if idx := strings.Index(strings.ToLower(htmlStr), "<head "); idx != -1 {
+					closeHeadIdx := strings.Index(htmlStr[idx:], ">")
+					if closeHeadIdx != -1 {
+						insertPos := idx + closeHeadIdx + 1
+						htmlStr = htmlStr[:insertPos] + "\n  " + baseHref + htmlStr[insertPos:]
+					}
+				} else if idx := strings.Index(strings.ToLower(htmlStr), "<html>"); idx != -1 {
+					htmlStr = htmlStr[:idx+6] + "\n<head>" + baseHref + "</head>" + htmlStr[idx+6:]
+				}
+			}
 
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write(cleaned)
+			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+			w.Write([]byte(htmlStr))
 			return
 		}
 	}
