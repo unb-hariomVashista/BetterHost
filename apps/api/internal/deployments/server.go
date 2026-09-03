@@ -42,7 +42,7 @@ const projectOverviewTemplate = `<!DOCTYPE html>
         <h1 class="text-3xl font-extrabold text-slate-900">{{ .Project.Name }}</h1>
         <p class="text-sm text-slate-500 font-mono mt-1">/projects/{{ .Project.Slug }}</p>
       </div>
-      <a href="http://localhost:3000/dashboard" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+      <a href="/dashboard" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">
         &larr; Back to Dashboard
       </a>
     </div>
