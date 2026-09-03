@@ -42,10 +42,13 @@ interface DeploymentPageProps {
   params: Promise<{ id: string }>;
 }
 
-export default function DeploymentInspectionPage({ params }: DeploymentPageProps) {
+export default function DeploymentInspectionPage({
+  params,
+}: DeploymentPageProps) {
   const { id } = use(params);
 
-  const [deploymentItem, setDeploymentItem] = useState<DeploymentWithProject | null>(null);
+  const [deploymentItem, setDeploymentItem] =
+    useState<DeploymentWithProject | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,9 +97,7 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
 
       setProjects(projs || []);
 
-      const match = (allDeps || []).find(
-        (d) => d.id === id || d.slug === id
-      );
+      const match = (allDeps || []).find((d) => d.id === id || d.slug === id);
 
       if (!match) {
         setError(`Deployment '${id}' not found`);
@@ -156,8 +157,8 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
         user.lastName ? user.lastName.charAt(0) : ""
       }`.toUpperCase()
     : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "U";
+      ? user.email.slice(0, 2).toUpperCase()
+      : "U";
 
   const userEmail = user?.email || "";
 
@@ -202,7 +203,9 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                   <span>Projects</span>
                 </a>
                 <button
-                  onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
+                  onClick={() =>
+                    setIsProjectsDropdownOpen(!isProjectsDropdownOpen)
+                  }
                   className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {isProjectsDropdownOpen ? (
@@ -302,12 +305,16 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
           {loading ? (
             <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-              <span className="text-xs font-semibold">Loading deployment inspection...</span>
+              <span className="text-xs font-semibold">
+                Loading deployment inspection...
+              </span>
             </div>
           ) : error || !deploymentItem ? (
             <div className="p-12 bg-white rounded-2xl border border-red-100 text-center flex flex-col items-center gap-3">
               <XCircle className="w-10 h-10 text-red-500" />
-              <h2 className="text-lg font-bold text-slate-900">Deployment Not Found</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                Deployment Not Found
+              </h2>
               <p className="text-xs text-slate-500">{error}</p>
               <a
                 href="/dashboard"
@@ -337,12 +344,17 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       </h1>
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{deploymentItem.status === "READY" ? "READY" : deploymentItem.status}</span>
+                        <span>
+                          {deploymentItem.status === "READY"
+                            ? "READY"
+                            : deploymentItem.status}
+                        </span>
                       </span>
                     </div>
 
                     <p className="text-xs text-slate-500 font-mono">
-                      Target Route: /projects/{deploymentItem.projectSlug}/{deploymentItem.slug}
+                      Target Route: /projects/{deploymentItem.projectSlug}/
+                      {deploymentItem.slug}
                     </p>
                   </div>
 
@@ -387,8 +399,12 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <Upload className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">Upload</span>
-                      <span className="text-[11px] font-medium text-slate-400">Completed</span>
+                      <span className="text-xs font-bold text-slate-900">
+                        Upload
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Completed
+                      </span>
                     </div>
                   </div>
 
@@ -398,8 +414,12 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <Search className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">Analyze</span>
-                      <span className="text-[11px] font-medium text-slate-400">Completed</span>
+                      <span className="text-xs font-bold text-slate-900">
+                        Analyze
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Completed
+                      </span>
                     </div>
                   </div>
 
@@ -409,8 +429,12 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <Code2 className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">Build</span>
-                      <span className="text-[11px] font-medium text-slate-400">Completed</span>
+                      <span className="text-xs font-bold text-slate-900">
+                        Build
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Completed
+                      </span>
                     </div>
                   </div>
 
@@ -420,8 +444,12 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <Rocket className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">Deploy</span>
-                      <span className="text-[11px] font-medium text-slate-400">Completed</span>
+                      <span className="text-xs font-bold text-slate-900">
+                        Deploy
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        Completed
+                      </span>
                     </div>
                   </div>
 
@@ -431,8 +459,12 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <Globe className="w-5 h-5" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">Live</span>
-                      <span className="text-[11px] font-semibold text-emerald-600">Ready</span>
+                      <span className="text-xs font-bold text-slate-900">
+                        Live
+                      </span>
+                      <span className="text-[11px] font-semibold text-emerald-600">
+                        Ready
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -443,7 +475,9 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                 {/* Left Column: Terminal Build Logs */}
                 <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-xs flex flex-col gap-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-base text-slate-900">Build Logs</h3>
+                    <h3 className="font-bold text-base text-slate-900">
+                      Build Logs
+                    </h3>
                     <div className="flex items-center gap-2">
                       <button className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1 cursor-pointer">
                         <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -458,7 +492,10 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                   <div className="bg-slate-950 rounded-xl p-5 font-mono text-xs text-slate-200 flex flex-col gap-2 overflow-x-auto leading-relaxed shadow-inner border border-slate-800/80">
                     <div className="flex items-center gap-3">
                       <span className="text-slate-400">&gt;</span>
-                      <span>Upload received archive for deployment {deploymentItem.slug}</span>
+                      <span>
+                        Upload received archive for deployment{" "}
+                        {deploymentItem.slug}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -472,7 +509,9 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <span className="text-slate-400">&gt;</span>
                       <span>
                         Framework detected:{" "}
-                        <span className="text-cyan-400 font-bold">Static Web App</span>
+                        <span className="text-cyan-400 font-bold">
+                          Static Web App
+                        </span>
                       </span>
                     </div>
 
@@ -481,7 +520,8 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                       <span>
                         Output path:{" "}
                         <span className="text-slate-400">
-                          storage/deployments/{deploymentItem.projectSlug}/{deploymentItem.slug}
+                          storage/deployments/{deploymentItem.projectSlug}/
+                          {deploymentItem.slug}
                         </span>
                       </span>
                     </div>
@@ -494,7 +534,8 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                     <div className="flex items-center gap-3">
                       <span className="text-emerald-400 font-bold">✓</span>
                       <span className="text-emerald-400 font-bold">
-                        Deployment is live at /projects/{deploymentItem.projectSlug}/{deploymentItem.slug}/
+                        Deployment is live at /projects/
+                        {deploymentItem.projectSlug}/{deploymentItem.slug}/
                       </span>
                     </div>
                   </div>
@@ -523,7 +564,8 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                         className="font-mono text-indigo-600 font-bold hover:underline flex items-center gap-1 truncate max-w-[170px]"
                       >
                         <span className="truncate">
-                          /projects/{deploymentItem.projectSlug}/{deploymentItem.slug}
+                          /projects/{deploymentItem.projectSlug}/
+                          {deploymentItem.slug}
                         </span>
                         <ExternalLink className="w-3 h-3 shrink-0" />
                       </a>
@@ -546,7 +588,9 @@ export default function DeploymentInspectionPage({ params }: DeploymentPageProps
                     <div className="flex items-center justify-between py-1">
                       <span className="text-slate-500">Deployed At</span>
                       <span className="font-medium text-slate-800">
-                        {new Date(deploymentItem.createdAt).toLocaleDateString()}
+                        {new Date(
+                          deploymentItem.createdAt,
+                        ).toLocaleDateString()}
                       </span>
                     </div>
                   </div>

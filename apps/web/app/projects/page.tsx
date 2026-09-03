@@ -34,23 +34,30 @@ import ZipPreviewModal from "@/app/components/ZipPreviewModal";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allDeployments, setAllDeployments] = useState<DeploymentWithProject[]>([]);
+  const [allDeployments, setAllDeployments] = useState<DeploymentWithProject[]>(
+    [],
+  );
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [user, setUser] = useState<UserResponse | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [projectsLayout, setProjectsLayout] = useState<"table" | "grid">("table");
+  const [projectsLayout, setProjectsLayout] = useState<"table" | "grid">(
+    "table",
+  );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedProjectForUpload, setSelectedProjectForUpload] = useState<Project | null>(null);
+  const [selectedProjectForUpload, setSelectedProjectForUpload] =
+    useState<Project | null>(null);
   const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(true);
   const [isHeaderProfileOpen, setIsHeaderProfileOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+  const [openActionDropdownId, setOpenActionDropdownId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const token = localStorage.getItem("betterhost_token");
@@ -115,14 +122,16 @@ export default function ProjectsPage() {
   const handleDeleteProject = async (projectId: string) => {
     if (
       !confirm(
-        "Are you sure you want to delete this project? All associated deployments will be deleted."
+        "Are you sure you want to delete this project? All associated deployments will be deleted.",
       )
     )
       return;
     try {
       await deleteProject(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      setAllDeployments((prev) => prev.filter((d) => d?.project?.id !== projectId));
+      setAllDeployments((prev) =>
+        prev.filter((d) => d?.project?.id !== projectId),
+      );
       setOpenActionDropdownId(null);
     } catch (err: any) {
       alert(err.message || "Failed to delete project");
@@ -143,8 +152,8 @@ export default function ProjectsPage() {
         user.lastName ? user.lastName.charAt(0) : ""
       }`.toUpperCase()
     : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "HV";
+      ? user.email.slice(0, 2).toUpperCase()
+      : "HV";
 
   const userEmail = user?.email || "";
 
@@ -163,7 +172,8 @@ export default function ProjectsPage() {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
     return projects.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
+      (p) =>
+        p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q),
     );
   }, [projects, searchQuery]);
 
@@ -174,7 +184,7 @@ export default function ProjectsPage() {
       (item) =>
         (item?.deployment?.slug || "").toLowerCase().includes(q) ||
         (item?.project?.name || "").toLowerCase().includes(q) ||
-        (item?.project?.slug || "").toLowerCase().includes(q)
+        (item?.project?.slug || "").toLowerCase().includes(q),
     );
   }, [allDeployments, searchQuery]);
 
@@ -334,11 +344,13 @@ export default function ProjectsPage() {
                   onClick={() => setIsSearchOpen(false)}
                 />
                 <div className="absolute left-0 top-full mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-50 flex flex-col gap-3 text-left animate-in fade-in zoom-in-95 duration-100 max-h-96 overflow-y-auto">
-                  {matchingProjects.length === 0 && matchingDeployments.length === 0 ? (
+                  {matchingProjects.length === 0 &&
+                  matchingDeployments.length === 0 ? (
                     <div className="py-8 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                       <Search className="w-6 h-6 text-slate-300" />
                       <span className="text-xs font-medium">
-                        No projects or deployments found for &quot;{searchQuery}&quot;
+                        No projects or deployments found for &quot;{searchQuery}
+                        &quot;
                       </span>
                     </div>
                   ) : (
@@ -382,7 +394,9 @@ export default function ProjectsPage() {
                         <div className="flex flex-col gap-1 border-t border-slate-100 pt-2">
                           <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
                             <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Deployments ({matchingDeployments.length})</span>
+                            <span>
+                              Deployments ({matchingDeployments.length})
+                            </span>
                           </div>
                           {matchingDeployments.map((item) => (
                             <a
@@ -454,8 +468,12 @@ export default function ProjectsPage() {
               {isHeaderProfileOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200/80 rounded-xl shadow-lg p-1.5 z-50 flex flex-col gap-1 text-left animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-2 border-b border-slate-100 flex flex-col">
-                    <span className="text-xs font-bold text-slate-900 truncate">{userName}</span>
-                    <span className="text-[10px] text-slate-400 truncate">{userEmail}</span>
+                    <span className="text-xs font-bold text-slate-900 truncate">
+                      {userName}
+                    </span>
+                    <span className="text-[10px] text-slate-400 truncate">
+                      {userEmail}
+                    </span>
                   </div>
                   <button
                     onClick={handleLogout}
@@ -528,9 +546,12 @@ export default function ProjectsPage() {
           ) : projects.length === 0 ? (
             <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 flex flex-col items-center justify-center gap-3">
               <Folder className="w-10 h-10 text-slate-300" />
-              <span className="font-bold text-slate-700 text-sm">No projects found</span>
+              <span className="font-bold text-slate-700 text-sm">
+                No projects found
+              </span>
               <p className="text-xs text-slate-400 max-w-xs">
-                Get started by creating your first project to deploy static sites.
+                Get started by creating your first project to deploy static
+                sites.
               </p>
               <button
                 onClick={() => setIsModalOpen(true)}
@@ -555,8 +576,12 @@ export default function ProjectsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                     {projects.map((p, idx) => {
-                      const initial = p.name ? p.name.charAt(0).toUpperCase() : "P";
-                      const projectDeps = allDeployments.filter((d) => d?.project?.id === p.id);
+                      const initial = p.name
+                        ? p.name.charAt(0).toUpperCase()
+                        : "P";
+                      const projectDeps = allDeployments.filter(
+                        (d) => d?.project?.id === p.id,
+                      );
                       const lastDep = projectDeps[0];
 
                       return (
@@ -568,7 +593,7 @@ export default function ProjectsPage() {
                             <div className="flex items-center gap-3.5 truncate">
                               <div
                                 className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm shrink-0 shadow-xs ${getBadgeColor(
-                                  idx
+                                  idx,
                                 )}`}
                               >
                                 {initial}
@@ -602,11 +627,15 @@ export default function ProjectsPage() {
                             <div className="flex flex-col">
                               <span className="text-xs font-medium text-slate-800">
                                 {lastDep
-                                  ? new Date(lastDep.deployment.createdAt).toLocaleDateString()
+                                  ? new Date(
+                                      lastDep.deployment.createdAt,
+                                    ).toLocaleDateString()
                                   : "No deployments"}
                               </span>
                               <span className="text-[11px] font-mono text-slate-400">
-                                {lastDep ? `Deployment #${lastDep.deployment.slug}` : "--"}
+                                {lastDep
+                                  ? `Deployment #${lastDep.deployment.slug}`
+                                  : "--"}
                               </span>
                             </div>
                           </td>
@@ -618,12 +647,15 @@ export default function ProjectsPage() {
                           </td>
 
                           <td className="py-4 px-6 text-right relative">
-                            <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className="flex items-center justify-end"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setOpenActionDropdownId(
-                                    openActionDropdownId === p.id ? null : p.id
+                                    openActionDropdownId === p.id ? null : p.id,
                                   );
                                 }}
                                 className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -669,15 +701,23 @@ export default function ProjectsPage() {
               </div>
 
               <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
-                <span>Showing 1 to {projects.length} of {projects.length} projects</span>
+                <span>
+                  Showing 1 to {projects.length} of {projects.length} projects
+                </span>
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                  <button
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                    disabled
+                  >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <span className="px-3 py-1 bg-indigo-50 text-indigo-600 font-bold rounded-lg border border-indigo-100">
                     1
                   </span>
-                  <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                  <button
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                    disabled
+                  >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -695,7 +735,7 @@ export default function ProjectsPage() {
                     <div className="flex items-center justify-between">
                       <div
                         className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm ${getBadgeColor(
-                          idx
+                          idx,
                         )}`}
                       >
                         {p.name.charAt(0).toUpperCase()}
@@ -753,7 +793,9 @@ export default function ProjectsPage() {
                 <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                   <Folder className="w-4 h-4" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">Create New Project</h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Create New Project
+                </h3>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -763,7 +805,10 @@ export default function ProjectsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateProjectSubmit} className="flex flex-col gap-4">
+            <form
+              onSubmit={handleCreateProjectSubmit}
+              className="flex flex-col gap-4"
+            >
               {error && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-xs text-red-600 font-semibold">
                   {error}
@@ -771,7 +816,9 @@ export default function ProjectsPage() {
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700">Project Name</label>
+                <label className="text-xs font-bold text-slate-700">
+                  Project Name
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. My Portfolio Website"

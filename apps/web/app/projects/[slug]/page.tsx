@@ -58,7 +58,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"Deployments" | "Settings">("Deployments");
+  const [activeTab, setActiveTab] = useState<"Deployments" | "Settings">(
+    "Deployments",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [environmentFilter, setEnvironmentFilter] = useState("All");
   const [sortBy, setSortBy] = useState("Latest");
@@ -91,7 +93,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       const match = allProjects.find(
         (p) =>
           p.slug.toLowerCase() === slug.toLowerCase() ||
-          (p as any).Slug?.toLowerCase() === slug.toLowerCase()
+          (p as any).Slug?.toLowerCase() === slug.toLowerCase(),
       );
 
       if (!match) {
@@ -136,7 +138,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }
   };
 
-  const handleRedeployDeployment = async (e: React.MouseEvent, deploymentId: string) => {
+  const handleRedeployDeployment = async (
+    e: React.MouseEvent,
+    deploymentId: string,
+  ) => {
     e.stopPropagation();
     try {
       await redeployDeployment(deploymentId);
@@ -162,13 +167,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         user.lastName ? user.lastName.charAt(0) : ""
       }`.toUpperCase()
     : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "HV";
+      ? user.email.slice(0, 2).toUpperCase()
+      : "HV";
 
   const userEmail = user?.email || "";
 
   const filteredDeployments = deployments.filter((d) =>
-    d.slug.toLowerCase().includes(searchQuery.toLowerCase())
+    d.slug.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -213,7 +218,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   <span>Projects</span>
                 </a>
                 <button
-                  onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
+                  onClick={() =>
+                    setIsProjectsDropdownOpen(!isProjectsDropdownOpen)
+                  }
                   className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {isProjectsDropdownOpen ? (
@@ -329,11 +336,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           {loading ? (
             <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-              <span className="text-sm font-medium">Loading project details...</span>
+              <span className="text-sm font-medium">
+                Loading project details...
+              </span>
             </div>
           ) : error || !project ? (
             <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center flex flex-col items-center gap-4">
-              <h2 className="text-xl font-bold text-slate-900">Project Not Found</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                Project Not Found
+              </h2>
               <p className="text-xs text-slate-500 max-w-md">{error}</p>
               <a
                 href="/dashboard"
@@ -346,7 +357,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <>
               {/* Breadcrumbs */}
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                <a href="/dashboard" className="hover:text-indigo-600 flex items-center gap-1">
+                <a
+                  href="/dashboard"
+                  className="hover:text-indigo-600 flex items-center gap-1"
+                >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Projects</span>
                 </a>
@@ -384,7 +398,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </a>
 
                     <span className="text-[11px] text-slate-400">
-                      Created on {new Date(project.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      Created on{" "}
+                      {new Date(project.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </span>
                   </div>
                 </div>
@@ -425,7 +444,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   {/* Search & Filter Header Bar */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex flex-col gap-0.5">
-                      <h2 className="text-xl font-bold text-slate-900">Deployments</h2>
+                      <h2 className="text-xl font-bold text-slate-900">
+                        Deployments
+                      </h2>
                       <p className="text-xs text-slate-500">
                         All deployments for this project.
                       </p>
@@ -501,8 +522,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                           {filteredDeployments.length === 0 ? (
                             <tr>
-                              <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
-                                No deployments found. Click "New Deployment" to upload a zip.
+                              <td
+                                colSpan={7}
+                                className="py-12 text-center text-slate-400 text-xs"
+                              >
+                                No deployments found. Click "New Deployment" to
+                                upload a zip.
                               </td>
                             </tr>
                           ) : (
@@ -513,7 +538,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                               >
                                 <td
                                   className="py-4 px-6 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2">
@@ -533,7 +560,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                       onClick={(e) => e.stopPropagation()}
                                       className="font-mono text-xs text-slate-400 hover:text-indigo-600 flex items-center gap-1"
                                     >
-                                      <span>{dep.id ? dep.id.slice(0, 7) : dep.slug}</span>
+                                      <span>
+                                        {dep.id ? dep.id.slice(0, 7) : dep.slug}
+                                      </span>
                                       <ExternalLink className="w-3 h-3 opacity-70" />
                                     </a>
                                   </div>
@@ -541,7 +570,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                                 <td
                                   className="py-4 px-6 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -551,7 +582,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                                 <td
                                   className="py-4 px-6 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   {dep.status === "READY" ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
@@ -573,21 +606,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                                 <td
                                   className="py-4 px-6 text-slate-500 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   {new Date(dep.createdAt).toLocaleString()}
                                 </td>
 
                                 <td
                                   className="py-4 px-6 font-mono text-slate-500 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   1m 17s
                                 </td>
 
                                 <td
                                   className="py-4 px-6 cursor-pointer"
-                                  onClick={() => window.location.href = `/deployments/${dep.id}`}
+                                  onClick={() =>
+                                    (window.location.href = `/deployments/${dep.id}`)
+                                  }
                                 >
                                   <div className="flex items-center gap-2">
                                     <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[10px]">
@@ -603,11 +642,18 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                   className="py-4 px-6 text-right relative"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                                  <div
+                                    className="flex items-center justify-end"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setOpenDropdownId(openDropdownId === dep.id ? null : dep.id);
+                                        setOpenDropdownId(
+                                          openDropdownId === dep.id
+                                            ? null
+                                            : dep.id,
+                                        );
                                       }}
                                       className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                                     >
@@ -667,16 +713,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                     <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
                       <span>
-                        Showing 1 to {filteredDeployments.length} of {filteredDeployments.length} deployments
+                        Showing 1 to {filteredDeployments.length} of{" "}
+                        {filteredDeployments.length} deployments
                       </span>
                       <div className="flex items-center gap-1">
-                        <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                        <button
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                          disabled
+                        >
                           <ChevronLeft className="w-4 h-4" />
                         </button>
                         <span className="px-3 py-1 bg-indigo-50 text-indigo-600 font-bold rounded-lg border border-indigo-100">
                           1
                         </span>
-                        <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                        <button
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                          disabled
+                        >
                           <ChevronRight className="w-4 h-4" />
                         </button>
                       </div>
@@ -691,7 +744,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   {/* General Information Card */}
                   <div className="bg-white rounded-2xl border border-slate-100 p-6 md:p-8 shadow-xs flex flex-col gap-6">
                     <div className="flex flex-col gap-1">
-                      <h2 className="text-lg font-bold text-slate-900">Project General Information</h2>
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Project General Information
+                      </h2>
                       <p className="text-xs text-slate-500">
                         View basic configuration for this project.
                       </p>
@@ -699,7 +754,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                     <div className="flex flex-col gap-4 text-xs">
                       <div className="flex flex-col gap-1">
-                        <label className="font-semibold text-slate-700">Project Name</label>
+                        <label className="font-semibold text-slate-700">
+                          Project Name
+                        </label>
                         <input
                           type="text"
                           readOnly
@@ -709,7 +766,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       </div>
 
                       <div className="flex flex-col gap-1">
-                        <label className="font-semibold text-slate-700">Project Slug & Route</label>
+                        <label className="font-semibold text-slate-700">
+                          Project Slug & Route
+                        </label>
                         <input
                           type="text"
                           readOnly
@@ -729,7 +788,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                           Danger Zone
                         </h3>
                         <p className="text-xs text-red-700 leading-relaxed max-w-md">
-                          Permanently delete this project and all associated deployments. This action cannot be undone.
+                          Permanently delete this project and all associated
+                          deployments. This action cannot be undone.
                         </p>
                       </div>
 
@@ -757,9 +817,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
                 <Trash2 className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Delete Project</h3>
+              <h3 className="text-xl font-bold text-slate-900">
+                Delete Project
+              </h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Are you sure you want to delete <strong className="text-slate-800">{project?.name}</strong>? All extracted deployment files and routes will be deleted forever.
+                Are you sure you want to delete{" "}
+                <strong className="text-slate-800">{project?.name}</strong>? All
+                extracted deployment files and routes will be deleted forever.
               </p>
             </div>
 

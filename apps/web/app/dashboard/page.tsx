@@ -76,17 +76,24 @@ export default function DashboardPage() {
   const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(true);
   const [isHeaderProfileOpen, setIsHeaderProfileOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+  const [openActionDropdownId, setOpenActionDropdownId] = useState<
+    string | null
+  >(null);
 
-  const [projectsLayout, setProjectsLayout] = useState<"table" | "grid">("table");
+  const [projectsLayout, setProjectsLayout] = useState<"table" | "grid">(
+    "table",
+  );
   const [environmentFilter, setEnvironmentFilter] = useState("All");
   const [sortBy, setSortBy] = useState("Latest");
 
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserResponse | null>(null);
-  const [activeNav, setActiveNav] = useState<"dashboard" | "projects" | "deployments">("dashboard");
+  const [activeNav, setActiveNav] = useState<
+    "dashboard" | "projects" | "deployments"
+  >("dashboard");
 
-  const [selectedDeploymentIndex, setSelectedDeploymentIndex] = useState<number>(0);
+  const [selectedDeploymentIndex, setSelectedDeploymentIndex] =
+    useState<number>(0);
 
   const handleLogout = () => {
     localStorage.removeItem("betterhost_token");
@@ -142,7 +149,7 @@ export default function DashboardPage() {
       (item) =>
         item.deployment.status === "QUEUED" ||
         item.deployment.status === "DEPLOYING" ||
-        item.deployment.status === "BUILDING"
+        item.deployment.status === "BUILDING",
     );
 
     if (hasPending) {
@@ -172,7 +179,7 @@ export default function DashboardPage() {
           } catch (e) {
             return [];
           }
-        })
+        }),
       );
       setAllDeployments(depResults.flat());
     } catch (err: any) {
@@ -182,7 +189,10 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRedeployDeployment = async (e: React.MouseEvent, deploymentId: string) => {
+  const handleRedeployDeployment = async (
+    e: React.MouseEvent,
+    deploymentId: string,
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -214,11 +224,18 @@ export default function DashboardPage() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("Are you sure you want to delete this project? All associated deployments will be deleted.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this project? All associated deployments will be deleted.",
+      )
+    )
+      return;
     try {
       await deleteProject(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      setAllDeployments((prev) => prev.filter((d) => d.project.id !== projectId));
+      setAllDeployments((prev) =>
+        prev.filter((d) => d.project.id !== projectId),
+      );
       setOpenActionDropdownId(null);
     } catch (err: any) {
       alert(err.message || "Failed to delete project");
@@ -229,15 +246,15 @@ export default function DashboardPage() {
     if (!confirm("Are you sure you want to delete this deployment?")) return;
     try {
       await deleteDeployment(deploymentId);
-      setAllDeployments((prev) => prev.filter((d) => d.deployment.id !== deploymentId));
+      setAllDeployments((prev) =>
+        prev.filter((d) => d.deployment.id !== deploymentId),
+      );
       setSelectedDeploymentIndex(0);
       setOpenActionDropdownId(null);
     } catch (err: any) {
       alert(err.message || "Failed to delete deployment");
     }
   };
-
-
 
   // Generate slug preview from input
   const slugPreview = projectName.trim()
@@ -248,7 +265,8 @@ export default function DashboardPage() {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
     return projects.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)
+      (p) =>
+        p.name.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q),
     );
   }, [projects, searchQuery]);
 
@@ -259,7 +277,7 @@ export default function DashboardPage() {
       (item) =>
         item.deployment.slug.toLowerCase().includes(q) ||
         item.project.name.toLowerCase().includes(q) ||
-        item.project.slug.toLowerCase().includes(q)
+        item.project.slug.toLowerCase().includes(q),
     );
   }, [allDeployments, searchQuery]);
 
@@ -290,8 +308,8 @@ export default function DashboardPage() {
         user.lastName ? user.lastName.charAt(0) : ""
       }`.toUpperCase()
     : user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "U";
+      ? user.email.slice(0, 2).toUpperCase()
+      : "U";
 
   const userEmail = user?.email || "";
 
@@ -368,7 +386,9 @@ export default function DashboardPage() {
                   <span>Projects</span>
                 </a>
                 <button
-                  onClick={() => setIsProjectsDropdownOpen(!isProjectsDropdownOpen)}
+                  onClick={() =>
+                    setIsProjectsDropdownOpen(!isProjectsDropdownOpen)
+                  }
                   className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {isProjectsDropdownOpen ? (
@@ -505,11 +525,13 @@ export default function DashboardPage() {
                     onClick={() => setIsSearchOpen(false)}
                   />
                   <div className="absolute left-0 top-full mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-50 flex flex-col gap-3 text-left animate-in fade-in zoom-in-95 duration-100 max-h-96 overflow-y-auto">
-                    {matchingProjects.length === 0 && matchingDeployments.length === 0 ? (
+                    {matchingProjects.length === 0 &&
+                    matchingDeployments.length === 0 ? (
                       <div className="py-8 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                         <Search className="w-6 h-6 text-slate-300" />
                         <span className="text-xs font-medium">
-                          No projects or deployments found for &quot;{searchQuery}&quot;
+                          No projects or deployments found for &quot;
+                          {searchQuery}&quot;
                         </span>
                       </div>
                     ) : (
@@ -555,7 +577,9 @@ export default function DashboardPage() {
                           <div className="flex flex-col gap-1 border-t border-slate-100 pt-2">
                             <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
                               <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Deployments ({matchingDeployments.length})</span>
+                              <span>
+                                Deployments ({matchingDeployments.length})
+                              </span>
                             </div>
                             {matchingDeployments.map((item) => (
                               <a
@@ -629,8 +653,12 @@ export default function DashboardPage() {
               {isHeaderProfileOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200/80 rounded-xl shadow-lg p-1.5 z-50 flex flex-col gap-1 text-left animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-2 border-b border-slate-100 flex flex-col">
-                    <span className="text-xs font-bold text-slate-900 truncate">{userName}</span>
-                    <span className="text-[10px] text-slate-400 truncate">{userEmail}</span>
+                    <span className="text-xs font-bold text-slate-900 truncate">
+                      {userName}
+                    </span>
+                    <span className="text-[10px] text-slate-400 truncate">
+                      {userEmail}
+                    </span>
                   </div>
                   <button
                     onClick={handleLogout}
@@ -715,7 +743,12 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                       <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                       <span>
-                        {allDeployments.filter((d) => d.deployment.status === "READY").length} successful
+                        {
+                          allDeployments.filter(
+                            (d) => d.deployment.status === "READY",
+                          ).length
+                        }{" "}
+                        successful
                       </span>
                     </div>
                   </div>
@@ -748,7 +781,9 @@ export default function DashboardPage() {
                     ) : projects.length === 0 ? (
                       <div className="py-12 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                         <Folder className="w-8 h-8 text-slate-300" />
-                        <span className="text-xs font-medium">No projects created yet.</span>
+                        <span className="text-xs font-medium">
+                          No projects created yet.
+                        </span>
                         <button
                           onClick={() => setIsModalOpen(true)}
                           className="mt-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 cursor-pointer"
@@ -770,7 +805,7 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-3.5 truncate">
                                 <div
                                   className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm shrink-0 shadow-xs ${getBadgeColor(
-                                    idx
+                                    idx,
                                   )}`}
                                 >
                                   {initial}
@@ -801,7 +836,9 @@ export default function DashboardPage() {
                                     Production
                                   </span>
                                   <span className="text-[11px] text-slate-400">
-                                    {new Date(proj.createdAt).toLocaleDateString()}
+                                    {new Date(
+                                      proj.createdAt,
+                                    ).toLocaleDateString()}
                                   </span>
                                 </div>
 
@@ -810,7 +847,9 @@ export default function DashboardPage() {
                                   <button
                                     onClick={() =>
                                       setOpenActionDropdownId(
-                                        openActionDropdownId === proj.id ? null : proj.id
+                                        openActionDropdownId === proj.id
+                                          ? null
+                                          : proj.id,
                                       )
                                     }
                                     className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -835,7 +874,9 @@ export default function DashboardPage() {
                                         <span>View Details</span>
                                       </a>
                                       <button
-                                        onClick={() => handleDeleteProject(proj.id)}
+                                        onClick={() =>
+                                          handleDeleteProject(proj.id)
+                                        }
                                         className="w-full px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 mt-1"
                                       >
                                         <Trash2 className="w-3.5 h-3.5 text-red-600" />
@@ -893,7 +934,10 @@ export default function DashboardPage() {
                     ) : (
                       <div className="flex flex-col gap-4 text-xs">
                         {allDeployments.slice(0, 5).map((item, idx) => (
-                          <div key={idx} className="flex items-start justify-between gap-3">
+                          <div
+                            key={idx}
+                            className="flex items-start justify-between gap-3"
+                          >
                             <div className="flex items-start gap-3">
                               <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
                                 {item.deployment.status === "READY" ? (
@@ -904,7 +948,10 @@ export default function DashboardPage() {
                               </div>
                               <div className="flex flex-col text-left">
                                 <span className="font-semibold text-slate-800">
-                                  Deployment #{item.deployment.slug} {item.deployment.status === "READY" ? "succeeded" : "queued"}
+                                  Deployment #{item.deployment.slug}{" "}
+                                  {item.deployment.status === "READY"
+                                    ? "succeeded"
+                                    : "queued"}
                                 </span>
                                 <span className="text-[11px] text-slate-400 font-mono">
                                   {item.project.slug}
@@ -912,7 +959,9 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <span className="text-[11px] text-slate-400 shrink-0">
-                              {new Date(item.deployment.createdAt).toLocaleDateString()}
+                              {new Date(
+                                item.deployment.createdAt,
+                              ).toLocaleDateString()}
                             </span>
                           </div>
                         ))}
@@ -934,7 +983,8 @@ export default function DashboardPage() {
                     Projects
                   </h1>
                   <p className="text-xs md:text-sm text-slate-500 font-medium">
-                    All your projects in one place. Deploy and manage them effortlessly.
+                    All your projects in one place. Deploy and manage them
+                    effortlessly.
                   </p>
                 </div>
 
@@ -1028,9 +1078,12 @@ export default function DashboardPage() {
               ) : projects.length === 0 ? (
                 <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 text-slate-400 flex flex-col items-center justify-center gap-3">
                   <Folder className="w-10 h-10 text-slate-300" />
-                  <span className="font-bold text-slate-700 text-sm">No projects found</span>
+                  <span className="font-bold text-slate-700 text-sm">
+                    No projects found
+                  </span>
                   <p className="text-xs text-slate-400 max-w-xs">
-                    Get started by creating your first project to deploy static sites.
+                    Get started by creating your first project to deploy static
+                    sites.
                   </p>
                   <button
                     onClick={() => setIsModalOpen(true)}
@@ -1055,8 +1108,12 @@ export default function DashboardPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {projects.map((p, idx) => {
-                          const initial = p.name ? p.name.charAt(0).toUpperCase() : "P";
-                          const projectDeps = allDeployments.filter((d) => d.project.id === p.id);
+                          const initial = p.name
+                            ? p.name.charAt(0).toUpperCase()
+                            : "P";
+                          const projectDeps = allDeployments.filter(
+                            (d) => d.project.id === p.id,
+                          );
                           const lastDep = projectDeps[0];
 
                           return (
@@ -1069,7 +1126,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-3.5 truncate">
                                   <div
                                     className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm shrink-0 shadow-xs ${getBadgeColor(
-                                      idx
+                                      idx,
                                     )}`}
                                   >
                                     {initial}
@@ -1105,11 +1162,15 @@ export default function DashboardPage() {
                                 <div className="flex flex-col">
                                   <span className="text-xs font-medium text-slate-800">
                                     {lastDep
-                                      ? new Date(lastDep.deployment.createdAt).toLocaleDateString()
+                                      ? new Date(
+                                          lastDep.deployment.createdAt,
+                                        ).toLocaleDateString()
                                       : "No deployments"}
                                   </span>
                                   <span className="text-[11px] font-mono text-slate-400">
-                                    {lastDep ? `Deployment #${lastDep.deployment.slug}` : "--"}
+                                    {lastDep
+                                      ? `Deployment #${lastDep.deployment.slug}`
+                                      : "--"}
                                   </span>
                                 </div>
                               </td>
@@ -1127,7 +1188,9 @@ export default function DashboardPage() {
                                   <button
                                     onClick={() =>
                                       setOpenActionDropdownId(
-                                        openActionDropdownId === p.id ? null : p.id
+                                        openActionDropdownId === p.id
+                                          ? null
+                                          : p.id,
                                       )
                                     }
                                     className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -1152,7 +1215,9 @@ export default function DashboardPage() {
                                         <span>View Details</span>
                                       </a>
                                       <button
-                                        onClick={() => handleDeleteProject(p.id)}
+                                        onClick={() =>
+                                          handleDeleteProject(p.id)
+                                        }
                                         className="w-full px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 mt-1"
                                       >
                                         <Trash2 className="w-3.5 h-3.5 text-red-600" />
@@ -1171,15 +1236,24 @@ export default function DashboardPage() {
 
                   {/* Pagination Footer */}
                   <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
-                    <span>Showing 1 to {projects.length} of {projects.length} projects</span>
+                    <span>
+                      Showing 1 to {projects.length} of {projects.length}{" "}
+                      projects
+                    </span>
                     <div className="flex items-center gap-1">
-                      <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                      <button
+                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                        disabled
+                      >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
                       <span className="px-3 py-1 bg-indigo-50 text-indigo-600 font-bold rounded-lg border border-indigo-100">
                         1
                       </span>
-                      <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                      <button
+                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                        disabled
+                      >
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -1197,7 +1271,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between">
                           <div
                             className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm ${getBadgeColor(
-                              idx
+                              idx,
                             )}`}
                           >
                             {p.name.charAt(0).toUpperCase()}
@@ -1303,9 +1377,7 @@ export default function DashboardPage() {
                   {/* Project Filter Dropdown */}
                   <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-600 cursor-pointer">
                     <span className="text-slate-400">Project</span>
-                    <select
-                      className="appearance-none bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer pr-1"
-                    >
+                    <select className="appearance-none bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer pr-1">
                       <option value="All">All Projects</option>
                       {projects.map((p) => (
                         <option key={p.id} value={p.slug}>
@@ -1334,9 +1406,7 @@ export default function DashboardPage() {
                   {/* Status Filter Dropdown */}
                   <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-600 cursor-pointer">
                     <span className="text-slate-400">Status</span>
-                    <select
-                      className="appearance-none bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer pr-1"
-                    >
+                    <select className="appearance-none bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer pr-1">
                       <option value="All">All</option>
                       <option value="Successful">Successful</option>
                       <option value="Failed">Failed</option>
@@ -1383,7 +1453,8 @@ export default function DashboardPage() {
                             colSpan={8}
                             className="py-12 text-center text-slate-400 text-xs"
                           >
-                            No deployments found across projects. Upload a zip archive to deploy.
+                            No deployments found across projects. Upload a zip
+                            archive to deploy.
                           </td>
                         </tr>
                       ) : (
@@ -1393,7 +1464,9 @@ export default function DashboardPage() {
                             : "P";
 
                           const isLatest = idx === 0;
-                          const shortHash = item.deployment.id ? item.deployment.id.slice(0, 7) : item.deployment.slug;
+                          const shortHash = item.deployment.id
+                            ? item.deployment.id.slice(0, 7)
+                            : item.deployment.slug;
 
                           return (
                             <tr
@@ -1403,7 +1476,9 @@ export default function DashboardPage() {
                               {/* Deployment Hash & Latest Pill */}
                               <td
                                 className="py-4 px-6 cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
@@ -1432,12 +1507,14 @@ export default function DashboardPage() {
                               {/* Project Avatar & Name */}
                               <td
                                 className="py-4 px-6 cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 <div className="flex items-center gap-3 truncate">
                                   <div
                                     className={`w-7 h-7 rounded-lg font-bold flex items-center justify-center text-xs shrink-0 shadow-xs ${getBadgeColor(
-                                      idx
+                                      idx,
                                     )}`}
                                   >
                                     {projectInitial}
@@ -1455,7 +1532,9 @@ export default function DashboardPage() {
                               {/* Environment */}
                               <td
                                 className="py-4 px-6 cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -1466,7 +1545,9 @@ export default function DashboardPage() {
                               {/* Status Badge */}
                               <td
                                 className="py-4 px-6 cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 {item.deployment.status === "READY" ? (
                                   <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100 inline-flex items-center gap-1">
@@ -1489,15 +1570,21 @@ export default function DashboardPage() {
                               {/* Deployed At */}
                               <td
                                 className="py-4 px-6 text-slate-500 font-medium cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
-                                {new Date(item.deployment.createdAt).toLocaleDateString()}
+                                {new Date(
+                                  item.deployment.createdAt,
+                                ).toLocaleDateString()}
                               </td>
 
                               {/* Duration */}
                               <td
                                 className="py-4 px-6 text-slate-500 font-mono cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 1m 17s
                               </td>
@@ -1505,7 +1592,9 @@ export default function DashboardPage() {
                               {/* Deployed By User Avatar */}
                               <td
                                 className="py-4 px-6 cursor-pointer"
-                                onClick={() => window.location.href = `/deployments/${item.deployment.id}`}
+                                onClick={() =>
+                                  (window.location.href = `/deployments/${item.deployment.id}`)
+                                }
                               >
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-[10px]">
@@ -1522,12 +1611,18 @@ export default function DashboardPage() {
                                 className="py-4 px-6 text-right relative"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                                <div
+                                  className="flex items-center justify-end"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setOpenActionDropdownId(
-                                        openActionDropdownId === item.deployment.id ? null : item.deployment.id
+                                        openActionDropdownId ===
+                                          item.deployment.id
+                                          ? null
+                                          : item.deployment.id,
                                       );
                                     }}
                                     className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -1535,7 +1630,8 @@ export default function DashboardPage() {
                                     <MoreVertical className="w-4 h-4" />
                                   </button>
 
-                                  {openActionDropdownId === item.deployment.id && (
+                                  {openActionDropdownId ===
+                                    item.deployment.id && (
                                     <div
                                       onClick={(e) => e.stopPropagation()}
                                       className="absolute right-6 top-12 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1 z-50 flex flex-col gap-1 text-xs text-left animate-in fade-in zoom-in-95 duration-100"
@@ -1557,7 +1653,10 @@ export default function DashboardPage() {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setOpenActionDropdownId(null);
-                                          handleRedeployDeployment(e, item.deployment.id);
+                                          handleRedeployDeployment(
+                                            e,
+                                            item.deployment.id,
+                                          );
                                         }}
                                         className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
                                       >
@@ -1568,7 +1667,9 @@ export default function DashboardPage() {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setOpenActionDropdownId(null);
-                                          handleDeleteDeployment(item.deployment.id);
+                                          handleDeleteDeployment(
+                                            item.deployment.id,
+                                          );
                                         }}
                                         className="w-full px-3 py-2 rounded-lg text-left text-red-600 hover:bg-red-50 font-semibold flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 mt-1"
                                       >
@@ -1589,15 +1690,24 @@ export default function DashboardPage() {
 
                 {/* Pagination Footer (Matching Mockup) */}
                 <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-white">
-                  <span>Showing 1 to {allDeployments.length} of {allDeployments.length} deployments</span>
+                  <span>
+                    Showing 1 to {allDeployments.length} of{" "}
+                    {allDeployments.length} deployments
+                  </span>
                   <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                    <button
+                      className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                      disabled
+                    >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <span className="px-3 py-1 bg-indigo-50 text-indigo-600 font-bold rounded-lg border border-indigo-100">
                       1
                     </span>
-                    <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40" disabled>
+                    <button
+                      className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                      disabled
+                    >
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -1634,7 +1744,10 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <form onSubmit={handleCreateProject} className="flex flex-col gap-5">
+            <form
+              onSubmit={handleCreateProject}
+              className="flex flex-col gap-5"
+            >
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="modalProjectName"

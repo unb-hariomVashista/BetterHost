@@ -1,0 +1,32 @@
+# Caddyfile for BetterHost VPS Deployment
+# Replace 'yourdomain.com' with your actual domain name!
+
+# Option 1: Separate Subdomains (Recommended)
+# Frontend Web App
+app.yourdomain.com {
+    reverse_proxy localhost:3000
+}
+
+# Go Backend API & Static Project Server
+api.yourdomain.com {
+    reverse_proxy localhost:8080
+}
+
+# Option 2: Single Domain Setup (Alternative)
+# If using single domain, uncomment below and comment out Option 1 above:
+# yourdomain.com {
+#     # Route API requests to Go API
+#     handle /api/* {
+#         reverse_proxy localhost:8080
+#     }
+#
+#     # Route Static Deployment Preview URLs to Go API
+#     handle /projects/* {
+#         reverse_proxy localhost:8080
+#     }
+#
+#     # Route all other web UI requests to Next.js Frontend
+#     handle {
+#         reverse_proxy localhost:3000
+#     }
+# }
