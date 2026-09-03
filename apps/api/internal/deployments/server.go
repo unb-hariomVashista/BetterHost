@@ -48,25 +48,7 @@ const projectOverviewTemplate = `<!DOCTYPE html>
     </div>
 
     <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm mb-8">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-slate-900">Deployments for {{ .Project.Name }}</h2>
-        <button onclick="document.getElementById('uploadForm').classList.toggle('hidden')" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 cursor-pointer">
-          + New Deployment ZIP
-        </button>
-      </div>
-
-      <!-- Upload ZIP Form -->
-      <div id="uploadForm" class="hidden mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
-        <h3 class="text-sm font-bold text-slate-800 mb-2">Upload ZIP File to Deploy</h3>
-        <form id="zipUploadForm" class="flex flex-col sm:flex-row items-center gap-3">
-          <input type="file" id="zipFileInput" accept=".zip" required class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
-          <button type="submit" id="uploadBtn" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shrink-0 cursor-pointer">
-            Upload & Deploy
-          </button>
-        </form>
-        <div id="uploadMsg" class="mt-2 text-xs font-semibold"></div>
-      </div>
-
+      <h2 class="text-xl font-bold text-slate-900 mb-4">Deployments for {{ .Project.Name }}</h2>
       {{ if .Deployments }}
         <div class="divide-y divide-slate-100">
           {{ range .Deployments }}
@@ -84,55 +66,10 @@ const projectOverviewTemplate = `<!DOCTYPE html>
           {{ end }}
         </div>
       {{ else }}
-        <p class="text-sm text-slate-400">No deployments yet for this project. Upload a zip file using the button above or from your Dashboard.</p>
+        <p class="text-sm text-slate-400">No deployments yet for this project. Upload a zip file from your Dashboard.</p>
       {{ end }}
     </div>
   </div>
-
-  <script>
-    document.getElementById('zipUploadForm')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fileInput = document.getElementById('zipFileInput');
-      const uploadBtn = document.getElementById('uploadBtn');
-      const uploadMsg = document.getElementById('uploadMsg');
-      if (!fileInput.files[0]) return;
-
-      const token = localStorage.getItem('betterhost_token');
-      if (!token) {
-        uploadMsg.className = 'mt-2 text-xs font-semibold text-red-600';
-        uploadMsg.innerText = 'Please log in to your Dashboard first to deploy.';
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('zipFile', fileInput.files[0]);
-
-      uploadBtn.disabled = true;
-      uploadBtn.innerText = 'Deploying...';
-      uploadMsg.className = 'mt-2 text-xs font-semibold text-indigo-600';
-      uploadMsg.innerText = 'Uploading ZIP file...';
-
-      try {
-        const res = await fetch('/api/v1/projects/{{ .Project.ID }}/deployments', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + token
-          },
-          body: formData
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to upload deployment');
-        uploadMsg.className = 'mt-2 text-xs font-semibold text-emerald-600';
-        uploadMsg.innerText = 'Deployment created successfully! Reloading page...';
-        setTimeout(() => window.location.reload(), 1500);
-      } catch (err) {
-        uploadMsg.className = 'mt-2 text-xs font-semibold text-red-600';
-        uploadMsg.innerText = err.message || 'Deployment upload failed';
-        uploadBtn.disabled = false;
-        uploadBtn.innerText = 'Upload & Deploy';
-      }
-    });
-  </script>
 </body>
 </html>`
 
