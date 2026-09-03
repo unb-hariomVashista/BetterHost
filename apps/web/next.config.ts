@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
         destination: `http://127.0.0.1:${apiPort}/api/:path*`,
       },
       {
+        source: "/projects/:slug/:depSlug",
+        destination: `http://127.0.0.1:${apiPort}/projects/:slug/:depSlug`,
+      },
+      {
         source: "/projects/:slug/:depSlug/:path*",
         destination: `http://127.0.0.1:${apiPort}/projects/:slug/:depSlug/:path*`,
       },

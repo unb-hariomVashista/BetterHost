@@ -270,12 +270,6 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 	// Case 2: GET /projects/{projectSlug}/{deploymentSlug}...
 	deploymentSlug := parts[1]
 
-	// Automatic Trailing Slash Redirect for root deployment route (e.g. /projects/p/d -> /projects/p/d/)
-	if len(parts) == 2 && parts[1] != "" && !strings.HasSuffix(r.URL.Path, "/") {
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
-		return
-	}
-
 	dep, err := s.deploymentService.GetDeploymentBySlugs(r.Context(), projectSlug, deploymentSlug)
 
 	subpath := ""
