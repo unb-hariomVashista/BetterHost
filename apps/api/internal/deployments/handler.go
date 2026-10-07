@@ -42,8 +42,8 @@ func (h *Handler) CreateWithZip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse multipart form (max 50MB)
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
+	// Parse multipart form (max 500MB)
+	if err := r.ParseMultipartForm(500 << 20); err != nil {
 		http.Error(w, "failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
