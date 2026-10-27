@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/unb-hariomVashista/BetterHost.git/internal/response"
 )
 
 type contextKey string
@@ -19,19 +20,19 @@ func (s *JWTService) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "authorization header required", http.StatusUnauthorized)
+			response.Error(w, http.StatusUnauthorized, "authorization header required")
 			return
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenStr == authHeader || strings.TrimSpace(tokenStr) == "" {
-			http.Error(w, "bearer token required", http.StatusUnauthorized)
+			response.Error(w, http.StatusUnauthorized, "bearer token required")
 			return
 		}
 
 		claims, err := s.ValidateToken(tokenStr)
 		if err != nil || claims == nil {
-			http.Error(w, "invalid or expired token", http.StatusUnauthorized)
+			response.Error(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
 

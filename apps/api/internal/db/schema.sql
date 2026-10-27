@@ -14,13 +14,28 @@ CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Ensure projects user_id column exists
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
-UPDATE projects SET user_id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1) WHERE user_id IS NULL AND (SELECT COUNT(*) FROM users) > 0;
+
+-- Drop obsolete global unique constraint on projects.slug if present, replacing with composite per-user unique constraint
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'projects_slug_key'
+    ) THEN
+        ALTER TABLE projects DROP CONSTRAINT projects_slug_key;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'projects_user_slug_unique'
+    ) THEN
+        ALTER TABLE projects ADD CONSTRAINT projects_user_slug_unique UNIQUE (user_id, slug);
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS deployments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,4 +67,5 @@ CREATE TABLE IF NOT EXISTS deployment_files (
 CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects (user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_lower_slug ON projects (LOWER(slug));
 CREATE INDEX IF NOT EXISTS idx_deployments_lower_slug ON deployments (LOWER(slug));
+CREATE INDEX IF NOT EXISTS idx_deployment_files_lookup ON deployment_files (deployment_id, path);
 CREATE INDEX IF NOT EXISTS idx_deployment_files_lookup ON deployment_files (deployment_id, path);

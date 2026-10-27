@@ -2,7 +2,10 @@ package deployments
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -17,6 +20,7 @@ type DeploymentJob struct {
 	ProjectID      uuid.UUID
 	ProjectSlug    string
 	DeploymentSlug string
+	TargetDir      string
 	ZipFilePath    string
 }
 
@@ -66,6 +70,105 @@ func getStorageDir() string {
 		return s
 	}
 	return "storage"
+}
+
+// InspectZipForBuildFrameworks verifies that the zip archive is a static export
+// and does not contain build-required raw source frameworks (e.g. Next.js, Vite, React source).
+func InspectZipForBuildFrameworks(zipFilePath string) error {
+	reader, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return fmt.Errorf("invalid zip file: %w", err)
+	}
+	defer reader.Close()
+
+	var detectedFramework string
+	hasPackageJSON := false
+	hasBuildScript := false
+	var packageJsonFile *zip.File
+
+	for _, file := range reader.File {
+		cleanName := strings.ToLower(filepath.ToSlash(filepath.Clean(file.Name)))
+
+		if strings.HasSuffix(cleanName, "next.config.js") ||
+			strings.HasSuffix(cleanName, "next.config.mjs") ||
+			strings.HasSuffix(cleanName, "next.config.ts") ||
+			strings.HasPrefix(cleanName, ".next/") ||
+			strings.Contains(cleanName, "/.next/") {
+			detectedFramework = "Next.js"
+			break
+		}
+
+		if strings.HasSuffix(cleanName, "nuxt.config.js") ||
+			strings.HasSuffix(cleanName, "nuxt.config.ts") ||
+			strings.HasPrefix(cleanName, ".nuxt/") {
+			detectedFramework = "Nuxt.js"
+			break
+		}
+
+		if strings.HasSuffix(cleanName, "svelte.config.js") ||
+			strings.HasSuffix(cleanName, "astro.config.mjs") ||
+			strings.HasSuffix(cleanName, "vite.config.js") ||
+			strings.HasSuffix(cleanName, "vite.config.ts") {
+			detectedFramework = "Vite/Astro/Svelte project"
+			break
+		}
+
+		if filepath.Base(cleanName) == "package.json" {
+			hasPackageJSON = true
+			packageJsonFile = file
+		}
+	}
+
+	if detectedFramework != "" {
+		return fmt.Errorf(
+			"unsupported framework project detected (%s). BetterHost hosts pre-built static websites only. Please build your project locally (e.g. run 'next build', 'npm run build') and upload the generated static export folder (e.g. 'out', 'dist', or 'build') containing index.html",
+			detectedFramework,
+		)
+	}
+
+	if hasPackageJSON && packageJsonFile != nil {
+		// Read package.json to see if it contains build scripts or frameworks
+		rc, err := packageJsonFile.Open()
+		if err == nil {
+			data, _ := io.ReadAll(io.LimitReader(rc, 64*1024))
+			rc.Close()
+
+			var pkg struct {
+				Scripts      map[string]string `json:"scripts"`
+				Dependencies map[string]string `json:"dependencies"`
+			}
+			if json.Unmarshal(data, &pkg) == nil {
+				if _, ok := pkg.Dependencies["next"]; ok {
+					return fmt.Errorf("unsupported framework project detected (Next.js in package.json). BetterHost hosts pre-built static websites. Please run 'next build' and export static HTML before uploading.")
+				}
+				if _, ok := pkg.Dependencies["nuxt"]; ok {
+					return fmt.Errorf("unsupported framework project detected (Nuxt in package.json). BetterHost hosts pre-built static websites. Please generate static files before uploading.")
+				}
+				if _, ok := pkg.Scripts["build"]; ok {
+					hasBuildScript = true
+				}
+			}
+		}
+	}
+
+	// If it contains raw package.json with build scripts and has no index.html anywhere in root or 1 depth
+	if hasBuildScript {
+		hasIndex := false
+		for _, file := range reader.File {
+			base := strings.ToLower(filepath.Base(file.Name))
+			if base == "index.html" || base == "index.php" || base == "index.htm" {
+				hasIndex = true
+				break
+			}
+		}
+		if !hasIndex {
+			return fmt.Errorf(
+				"source repository with npm build script detected without static index.html. BetterHost hosts static builds only. Please run 'npm run build' first and upload the output 'dist' or 'build' folder.",
+			)
+		}
+	}
+
+	return nil
 }
 
 func autoFlattenToEntrypoint(targetDir string) {
@@ -131,8 +234,10 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 		log.Printf("Failed to update status to DEPLOYING for %s: %v", job.DeploymentID, err)
 	}
 
-	// Target extraction directory
-	targetDir := filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug)))
+	targetDir := job.TargetDir
+	if targetDir == "" {
+		targetDir = filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(job.ProjectSlug), strings.ToLower(job.DeploymentSlug)))
+	}
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Printf("Failed to create target dir %s: %v", targetDir, err)
@@ -149,7 +254,9 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	}
 	defer reader.Close()
 
-	// Extract files with Zip-Slip protection
+	// Extract files with Zip-Slip protection using streaming buffers to support large files efficiently
+	buf := make([]byte, 64*1024)
+
 	for _, file := range reader.File {
 		rawPath := strings.TrimPrefix(strings.TrimPrefix(file.Name, "/"), "\\")
 		cleanPath := filepath.Clean(rawPath)
@@ -189,16 +296,20 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 			return
 		}
 
-		contentBytes, err := io.ReadAll(inFile)
-		inFile.Close()
+		outFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
 		if err != nil {
-			log.Printf("Failed to read zip file entry %s: %v", file.Name, err)
+			inFile.Close()
+			log.Printf("Failed to open destination file %s: %v", destPath, err)
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
 			return
 		}
 
-		if err := os.WriteFile(destPath, contentBytes, file.Mode()); err != nil {
-			log.Printf("Failed to write file %s: %v", destPath, err)
+		_, copyErr := io.CopyBuffer(outFile, inFile, buf)
+		inFile.Close()
+		outFile.Close()
+
+		if copyErr != nil {
+			log.Printf("Failed to copy file data to %s: %v", destPath, copyErr)
 			wp.repository.UpdateStatus(ctx, job.DeploymentID, StatusFailed, "", "")
 			return
 		}
@@ -207,11 +318,17 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 	// Step 2: Auto-flatten nested parent folders to find entrypoint
 	autoFlattenToEntrypoint(targetDir)
 
-	// Step 3: Persist finalized files to DB after flattening
+	// Step 3: Persist finalized files to DB after flattening (cap individual files to 15MB in DB to avoid Neon limits, disk has full copy)
+	const maxDbFileSize = 15 * 1024 * 1024
 	_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil || d.IsDir() {
 			return nil
 		}
+		info, err := d.Info()
+		if err != nil || info.Size() > maxDbFileSize {
+			return nil
+		}
+
 		rel, relErr := filepath.Rel(targetDir, path)
 		if relErr != nil {
 			return nil
@@ -271,3 +388,6 @@ func (wp *WorkerPool) processJob(ctx context.Context, job DeploymentJob) {
 
 	log.Printf("Successfully deployed deployment %s (%s/%s) with entrypoint '%s' to %s", job.DeploymentID, job.ProjectSlug, job.DeploymentSlug, entrypoint, targetDir)
 }
+
+// Suppress unused imports check if any
+var _ = bytes.MinRead

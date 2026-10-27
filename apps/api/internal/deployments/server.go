@@ -2,7 +2,6 @@ package deployments
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -13,7 +12,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/unb-hariomVashista/BetterHost.git/internal/projects"
+	"github.com/unb-hariomVashista/BetterHost.git/internal/response"
 )
 
 type Server struct {
@@ -28,7 +29,7 @@ func NewServer(deploymentService *Service, projectService *projects.Service) *Se
 	}
 }
 
-const projectOverviewTemplate = `<!DOCTYPE html>
+const userProjectOverviewTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -40,7 +41,7 @@ const projectOverviewTemplate = `<!DOCTYPE html>
     <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
       <div>
         <h1 class="text-3xl font-extrabold text-slate-900">{{ .Project.Name }}</h1>
-        <p class="text-sm text-slate-500 font-mono mt-1">/projects/{{ .Project.Slug }}</p>
+        <p class="text-sm text-slate-500 font-mono mt-1">{{ .BasePath }}</p>
       </div>
       <a href="/dashboard" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">
         &larr; Back to Dashboard
@@ -54,12 +55,12 @@ const projectOverviewTemplate = `<!DOCTYPE html>
           {{ range .Deployments }}
             <div class="py-4 flex items-center justify-between">
               <div>
-                <a href="/projects/{{ $.Project.Slug }}/{{ .Slug }}/" class="text-base font-bold text-indigo-600 hover:underline">
-                  /projects/{{ $.Project.Slug }}/{{ .Slug }}
+                <a href="{{ $.BasePath }}/{{ .Slug }}/" class="text-base font-bold text-indigo-600 hover:underline">
+                  {{ $.BasePath }}/{{ .Slug }}
                 </a>
                 <div class="text-xs text-slate-400 font-mono mt-0.5">Status: <span class="font-bold text-emerald-600">{{ .Status }}</span></div>
               </div>
-              <a href="/projects/{{ $.Project.Slug }}/{{ .Slug }}/" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700">
+              <a href="{{ $.BasePath }}/{{ .Slug }}/" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700">
                 View Site &rarr;
               </a>
             </div>
@@ -140,7 +141,7 @@ func resolveFilePath(artifactPath, subpath string) (string, os.FileInfo, bool) {
 		}
 	}
 
-	// 2. Single top-level directory wrapper check (e.g. artifactPath/CBC/subpath)
+	// 2. Single top-level directory wrapper check
 	entries, readErr := os.ReadDir(artifactPath)
 	if readErr == nil && len(entries) == 1 && entries[0].IsDir() {
 		wrapperDir := filepath.Join(artifactPath, entries[0].Name())
@@ -243,14 +244,103 @@ func (s *Server) restoreDeploymentFilesFromDB(ctx context.Context, dep *Deployme
 	return true
 }
 
+func (s *Server) ServeUserScopedDeployment(w http.ResponseWriter, r *http.Request) {
+	// Pattern: /{userId}/{projectSlug}/{deploymentSlug}/*
+	rawPath := strings.Trim(r.URL.Path, "/")
+	parts := strings.Split(rawPath, "/")
+
+	if len(parts) < 2 {
+		response.Error(w, http.StatusBadRequest, "invalid url pattern; expected /{userId}/{projectSlug} or /{userId}/{projectSlug}/{deploymentSlug}")
+		return
+	}
+
+	userIDStr := parts[0]
+	parsedUserID, parseErr := uuid.Parse(userIDStr)
+	if parseErr != nil {
+		response.Error(w, http.StatusBadRequest, "invalid user id in path")
+		return
+	}
+
+	projectSlug := parts[1]
+
+	// Case 1: GET /{userId}/{projectSlug} (Project overview)
+	if len(parts) == 2 || (len(parts) == 3 && parts[2] == "") {
+		proj, err := s.projectService.GetProjectByUserAndSlug(r.Context(), parsedUserID, projectSlug)
+		if err != nil || proj == nil {
+			response.Error(w, http.StatusNotFound, fmt.Sprintf("project '%s' not found for user", projectSlug))
+			return
+		}
+
+		deps, err := s.deploymentService.ListDeploymentsByProjectID(r.Context(), proj.ID)
+		if err != nil {
+			deps = []Deployment{}
+		}
+
+		basePath := fmt.Sprintf("/%s/%s", parsedUserID.String(), proj.Slug)
+
+		if strings.Contains(r.Header.Get("Accept"), "application/json") {
+			response.JSON(w, http.StatusOK, map[string]any{
+				"project":     proj,
+				"deployments": deps,
+				"basePath":    basePath,
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		tmpl, _ := template.New("overview").Parse(userProjectOverviewTemplate)
+		_ = tmpl.Execute(w, map[string]any{
+			"Project":     proj,
+			"Deployments": deps,
+			"BasePath":    basePath,
+		})
+		return
+	}
+
+	// Case 2: GET /{userId}/{projectSlug}/{deploymentSlug}...
+	deploymentSlug := parts[2]
+	dep, err := s.deploymentService.GetDeploymentByUserProjectAndDeploymentSlug(r.Context(), parsedUserID, projectSlug, deploymentSlug)
+
+	subpath := ""
+	if err == nil && dep != nil {
+		subpath = strings.Join(parts[3:], "/")
+	} else {
+		// Fallback: If parts[2] is not a deployment slug, check if it's an asset on the latest ready deployment
+		proj, projErr := s.projectService.GetProjectByUserAndSlug(r.Context(), parsedUserID, projectSlug)
+		if projErr == nil && proj != nil {
+			deps, _ := s.deploymentService.ListDeploymentsByProjectID(r.Context(), proj.ID)
+			for _, d := range deps {
+				if d.Status == StatusReady {
+					dep = &d
+					subpath = strings.Join(parts[2:], "/")
+					break
+				}
+			}
+		}
+	}
+
+	if dep == nil {
+		response.Error(w, http.StatusNotFound, fmt.Sprintf("deployment or asset not found for user project '%s'", projectSlug))
+		return
+	}
+
+	if dep.Status != StatusReady {
+		response.Error(w, http.StatusServiceUnavailable, fmt.Sprintf("deployment '%s' status is %s (not ready)", dep.Slug, dep.Status))
+		return
+	}
+
+	baseHref := fmt.Sprintf("/%s/%s/%s/", parsedUserID.String(), projectSlug, dep.Slug)
+	s.serveDeploymentFile(w, r, dep, subpath, baseHref)
+}
+
 func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request) {
-	// Path pattern: /projects/{projectSlug} or /projects/{projectSlug}/{deploymentSlug} or /projects/{projectSlug}/{deploymentSlug}/*
+	// Backward compatible pattern: /projects/{projectSlug} or /projects/{projectSlug}/{deploymentSlug}/*
 	rawPath := strings.TrimPrefix(r.URL.Path, "/projects/")
 	rawPath = strings.TrimPrefix(rawPath, "/")
 	parts := strings.Split(rawPath, "/")
 
 	if len(parts) == 0 || parts[0] == "" {
-		http.Error(w, "project slug is required", http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "project slug is required")
 		return
 	}
 
@@ -260,7 +350,7 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 	if len(parts) == 1 || (len(parts) == 2 && parts[1] == "") {
 		proj, err := s.projectService.GetProjectBySlug(r.Context(), projectSlug)
 		if err != nil || proj == nil {
-			http.Error(w, fmt.Sprintf("project '%s' not found", projectSlug), http.StatusNotFound)
+			response.Error(w, http.StatusNotFound, fmt.Sprintf("project '%s' not found", projectSlug))
 			return
 		}
 
@@ -269,35 +359,36 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 			deps = []Deployment{}
 		}
 
+		basePath := fmt.Sprintf("/projects/%s", proj.Slug)
+
 		if strings.Contains(r.Header.Get("Accept"), "application/json") {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
+			response.JSON(w, http.StatusOK, map[string]any{
 				"project":     proj,
 				"deployments": deps,
+				"basePath":    basePath,
 			})
 			return
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		tmpl, _ := template.New("overview").Parse(projectOverviewTemplate)
-		tmpl.Execute(w, map[string]any{
+		tmpl, _ := template.New("overview").Parse(userProjectOverviewTemplate)
+		_ = tmpl.Execute(w, map[string]any{
 			"Project":     proj,
 			"Deployments": deps,
+			"BasePath":    basePath,
 		})
 		return
 	}
 
 	// Case 2: GET /projects/{projectSlug}/{deploymentSlug}...
 	deploymentSlug := parts[1]
-
 	dep, err := s.deploymentService.GetDeploymentBySlugs(r.Context(), projectSlug, deploymentSlug)
 
 	subpath := ""
 	if err == nil && dep != nil {
 		subpath = strings.Join(parts[2:], "/")
 	} else {
-		// Fallback: If parts[1] is NOT a deployment slug, it's an asset path (e.g. /projects/test-project/Javascripts/modal.js)
-		// Fetch the latest READY deployment for this project!
+		// Fallback: If parts[1] is NOT a deployment slug, it's an asset path
 		proj, projErr := s.projectService.GetProjectBySlug(r.Context(), projectSlug)
 		if projErr == nil && proj != nil {
 			deps, _ := s.deploymentService.ListDeploymentsByProjectID(r.Context(), proj.ID)
@@ -312,15 +403,20 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 	}
 
 	if dep == nil {
-		http.Error(w, fmt.Sprintf("deployment or asset not found for project '%s'", projectSlug), http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, fmt.Sprintf("deployment or asset not found for project '%s'", projectSlug))
 		return
 	}
 
 	if dep.Status != StatusReady {
-		http.Error(w, fmt.Sprintf("deployment '%s' status is %s (not ready)", dep.Slug, dep.Status), http.StatusServiceUnavailable)
+		response.Error(w, http.StatusServiceUnavailable, fmt.Sprintf("deployment '%s' status is %s (not ready)", dep.Slug, dep.Status))
 		return
 	}
 
+	baseHref := fmt.Sprintf("/projects/%s/%s/", projectSlug, dep.Slug)
+	s.serveDeploymentFile(w, r, dep, subpath, baseHref)
+}
+
+func (s *Server) serveDeploymentFile(w http.ResponseWriter, r *http.Request, dep *Deployment, subpath string, baseHref string) {
 	if subpath == "" || subpath == "/" {
 		// Check for index file inside deployment artifactPath
 		if idxPath, _, found := resolveIndexFile(dep.ArtifactPath); found {
@@ -349,8 +445,8 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 
 	if !found {
 		normPath := normalizeArtifactPath(dep.ArtifactPath)
-		log.Printf("[ServeProjectOrDeployment] File not found: subpath=%q, DB artifactPath=%q, normalizedPath=%q", subpath, dep.ArtifactPath, normPath)
-		http.Error(w, "file not found", http.StatusNotFound)
+		log.Printf("[serveDeploymentFile] File not found: subpath=%q, DB artifactPath=%q, normalizedPath=%q", subpath, dep.ArtifactPath, normPath)
+		response.Error(w, http.StatusNotFound, "file not found")
 		return
 	}
 
@@ -368,17 +464,17 @@ func (s *Server) ServeProjectOrDeployment(w http.ResponseWriter, r *http.Request
 
 			// Inject base tag for relative asset resolution if not present
 			if !strings.Contains(strings.ToLower(htmlStr), "<base ") {
-				baseHref := fmt.Sprintf(`<base href="/projects/%s/%s/">`, projectSlug, dep.Slug)
+				baseTag := fmt.Sprintf(`<base href="%s">`, baseHref)
 				if idx := strings.Index(strings.ToLower(htmlStr), "<head>"); idx != -1 {
-					htmlStr = htmlStr[:idx+6] + "\n  " + baseHref + htmlStr[idx+6:]
+					htmlStr = htmlStr[:idx+6] + "\n  " + baseTag + htmlStr[idx+6:]
 				} else if idx := strings.Index(strings.ToLower(htmlStr), "<head "); idx != -1 {
 					closeHeadIdx := strings.Index(htmlStr[idx:], ">")
 					if closeHeadIdx != -1 {
 						insertPos := idx + closeHeadIdx + 1
-						htmlStr = htmlStr[:insertPos] + "\n  " + baseHref + htmlStr[insertPos:]
+						htmlStr = htmlStr[:insertPos] + "\n  " + baseTag + htmlStr[insertPos:]
 					}
 				} else if idx := strings.Index(strings.ToLower(htmlStr), "<html>"); idx != -1 {
-					htmlStr = htmlStr[:idx+6] + "\n<head>" + baseHref + "</head>" + htmlStr[idx+6:]
+					htmlStr = htmlStr[:idx+6] + "\n<head>" + baseTag + "</head>" + htmlStr[idx+6:]
 				}
 			}
 

@@ -3,10 +3,14 @@ package projects
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+var nonSlugRegex = regexp.MustCompile(`[^a-z0-9-]+`)
 
 type Service struct {
 	repository *Repository
@@ -25,7 +29,21 @@ func (s *Service) CreateProject(ctx context.Context, userID uuid.UUID, name stri
 		return nil, fmt.Errorf("project name cannot be empty")
 	}
 
-	slug := generateSlug(name)
+	baseSlug := generateSlug(name)
+	if baseSlug == "" {
+		baseSlug = "project"
+	}
+
+	slug := baseSlug
+	// Ensure slug uniqueness scoped per user (or globally if shared)
+	for i := 0; i < 5; i++ {
+		existing, err := s.repository.FindByUserAndSlug(ctx, userID, slug)
+		if err == nil && existing != nil {
+			slug = fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix()%10000+int64(i))
+			continue
+		}
+		break
+	}
 
 	project, err := s.repository.Create(ctx, userID, name, slug)
 	if err != nil {
@@ -36,9 +54,10 @@ func (s *Service) CreateProject(ctx context.Context, userID uuid.UUID, name stri
 }
 
 func generateSlug(name string) string {
-	return strings.ToLower(
-		strings.ReplaceAll(name, " ", "-"),
-	)
+	lower := strings.ToLower(name)
+	hyphenated := strings.ReplaceAll(lower, " ", "-")
+	cleaned := nonSlugRegex.ReplaceAllString(hyphenated, "")
+	return strings.Trim(cleaned, "-")
 }
 
 func (s *Service) ListProjects(ctx context.Context) ([]Project, error) {
@@ -63,8 +82,16 @@ func (s *Service) GetProjectByID(ctx context.Context, id uuid.UUID) (*Project, e
 	return s.repository.FindByID(ctx, id)
 }
 
+func (s *Service) GetProjectByIDForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*Project, error) {
+	return s.repository.FindByIDForUser(ctx, id, userID)
+}
+
 func (s *Service) GetProjectBySlug(ctx context.Context, slug string) (*Project, error) {
 	return s.repository.FindBySlug(ctx, slug)
+}
+
+func (s *Service) GetProjectByUserAndSlug(ctx context.Context, userID uuid.UUID, slug string) (*Project, error) {
+	return s.repository.FindByUserAndSlug(ctx, userID, slug)
 }
 
 func (s *Service) DeleteProject(ctx context.Context, id uuid.UUID) error {

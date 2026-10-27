@@ -73,8 +73,9 @@ func (r *Repository) Create(
 
 type DeploymentWithProject struct {
 	Deployment
-	ProjectName string `json:"projectName"`
-	ProjectSlug string `json:"projectSlug"`
+	ProjectName string     `json:"projectName"`
+	ProjectSlug string     `json:"projectSlug"`
+	UserID      *uuid.UUID `json:"userId,omitempty"`
 }
 
 func (r *Repository) FindAll(ctx context.Context) ([]DeploymentWithProject, error) {
@@ -83,7 +84,7 @@ func (r *Repository) FindAll(ctx context.Context) ([]DeploymentWithProject, erro
 		ctx,
 		`
 		SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at,
-		       p.name, p.slug
+		       p.name, p.slug, p.user_id
 		FROM deployments d
 		JOIN projects p ON p.id = d.project_id
 		ORDER BY d.created_at DESC
@@ -108,6 +109,7 @@ func (r *Repository) FindAll(ctx context.Context) ([]DeploymentWithProject, erro
 			&dep.UpdatedAt,
 			&dep.ProjectName,
 			&dep.ProjectSlug,
+			&dep.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -123,7 +125,7 @@ func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Depl
 		ctx,
 		`
 		SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at,
-		       p.name, p.slug
+		       p.name, p.slug, p.user_id
 		FROM deployments d
 		JOIN projects p ON p.id = d.project_id
 		WHERE p.user_id = $1
@@ -150,6 +152,7 @@ func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Depl
 			&dep.UpdatedAt,
 			&dep.ProjectName,
 			&dep.ProjectSlug,
+			&dep.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -204,7 +207,7 @@ func (r *Repository) CleanupStaleDeployments(ctx context.Context) error {
 		UPDATE deployments
 		SET status = 'FAILED', updated_at = NOW()
 		WHERE status IN ('QUEUED', 'DEPLOYING', 'BUILDING')
-		  AND updated_at < NOW() - INTERVAL '2 minutes'
+		  AND updated_at < NOW() - INTERVAL '5 minutes'
 		`,
 	)
 	return err
@@ -238,6 +241,65 @@ func (r *Repository) FindByID(ctx context.Context, id uuid.UUID) (*Deployment, e
 	return &dep, nil
 }
 
+func (r *Repository) FindByIDForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*Deployment, error) {
+	var dep Deployment
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at
+		FROM deployments d
+		JOIN projects p ON p.id = d.project_id
+		WHERE d.id = $1 AND (p.user_id = $2 OR p.user_id IS NULL)
+		`,
+		id,
+		userID,
+	).Scan(
+		&dep.ID,
+		&dep.ProjectID,
+		&dep.Slug,
+		&dep.Entrypoint,
+		&dep.ArtifactPath,
+		&dep.Status,
+		&dep.CreatedAt,
+		&dep.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dep, nil
+}
+
+func (r *Repository) FindByProjectIDAndSlug(ctx context.Context, projectID uuid.UUID, deploymentSlug string) (*Deployment, error) {
+	var dep Deployment
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT id, project_id, slug, entrypoint, artifact_path, status, created_at, updated_at
+		FROM deployments
+		WHERE project_id = $1 AND LOWER(slug) = LOWER($2)
+		`,
+		projectID,
+		deploymentSlug,
+	).Scan(
+		&dep.ID,
+		&dep.ProjectID,
+		&dep.Slug,
+		&dep.Entrypoint,
+		&dep.ArtifactPath,
+		&dep.Status,
+		&dep.CreatedAt,
+		&dep.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dep, nil
+}
+
 func (r *Repository) FindByProjectSlugAndDeploymentSlug(
 	ctx context.Context,
 	projectSlug string,
@@ -253,10 +315,73 @@ func (r *Repository) FindByProjectSlugAndDeploymentSlug(
 		FROM deployments d
 		JOIN projects p ON p.id = d.project_id
 		WHERE LOWER(p.slug) = LOWER($1) AND LOWER(d.slug) = LOWER($2)
+		ORDER BY d.created_at DESC
+		LIMIT 1
 		`,
 		projectSlug,
 		deploymentSlug,
 	).Scan(
+		&dep.ID,
+		&dep.ProjectID,
+		&dep.Slug,
+		&dep.Entrypoint,
+		&dep.ArtifactPath,
+		&dep.Status,
+		&dep.CreatedAt,
+		&dep.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &dep, nil
+}
+
+func (r *Repository) FindByUserProjectAndDeploymentSlug(
+	ctx context.Context,
+	userID uuid.UUID,
+	projectSlug string,
+	deploymentSlug string,
+) (*Deployment, error) {
+	_ = r.CleanupStaleDeployments(ctx)
+	var dep Deployment
+
+	var query string
+	if userID == uuid.Nil {
+		query = `
+			SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at
+			FROM deployments d
+			JOIN projects p ON p.id = d.project_id
+			WHERE LOWER(p.slug) = LOWER($1) AND LOWER(d.slug) = LOWER($2)
+			ORDER BY d.created_at DESC
+			LIMIT 1
+		`
+		err := r.db.QueryRow(ctx, query, projectSlug, deploymentSlug).Scan(
+			&dep.ID,
+			&dep.ProjectID,
+			&dep.Slug,
+			&dep.Entrypoint,
+			&dep.ArtifactPath,
+			&dep.Status,
+			&dep.CreatedAt,
+			&dep.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &dep, nil
+	}
+
+	query = `
+		SELECT d.id, d.project_id, d.slug, d.entrypoint, d.artifact_path, d.status, d.created_at, d.updated_at
+		FROM deployments d
+		JOIN projects p ON p.id = d.project_id
+		WHERE p.user_id = $1 AND LOWER(p.slug) = LOWER($2) AND LOWER(d.slug) = LOWER($3)
+		ORDER BY d.created_at DESC
+		LIMIT 1
+	`
+	err := r.db.QueryRow(ctx, query, userID, projectSlug, deploymentSlug).Scan(
 		&dep.ID,
 		&dep.ProjectID,
 		&dep.Slug,
@@ -281,23 +406,51 @@ func (r *Repository) UpdateStatus(
 	artifactPath string,
 	entrypoint string,
 ) error {
-	_, err := r.db.Exec(
-		ctx,
-		`
-		UPDATE deployments
-		SET status = $1, artifact_path = $2, entrypoint = $3, updated_at = NOW()
-		WHERE id = $4
-		`,
-		status,
-		artifactPath,
-		entrypoint,
-		id,
-	)
+	var err error
+	if artifactPath != "" && entrypoint != "" {
+		_, err = r.db.Exec(
+			ctx,
+			`
+			UPDATE deployments
+			SET status = $1, artifact_path = $2, entrypoint = $3, updated_at = NOW()
+			WHERE id = $4
+			`,
+			status,
+			artifactPath,
+			entrypoint,
+			id,
+		)
+	} else {
+		_, err = r.db.Exec(
+			ctx,
+			`
+			UPDATE deployments
+			SET status = $1, updated_at = NOW()
+			WHERE id = $2
+			`,
+			status,
+			id,
+		)
+	}
 	return err
 }
 
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM deployments WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) DeleteForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	_, err := r.db.Exec(
+		ctx,
+		`
+		DELETE FROM deployments d
+		USING projects p
+		WHERE d.id = $1 AND d.project_id = p.id AND (p.user_id = $2 OR p.user_id IS NULL)
+		`,
+		id,
+		userID,
+	)
 	return err
 }
 
@@ -440,4 +593,3 @@ func (r *Repository) RestoreSingleFileFromDB(
 
 	return true, nil
 }
-

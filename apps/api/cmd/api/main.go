@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 
 	"github.com/unb-hariomVashista/BetterHost.git/internal/auth"
@@ -106,8 +107,25 @@ func main() {
 	mux.HandleFunc("POST /api/v1/deployments/{id}/redeploy", jwtService.AuthMiddleware(deploymentHandler.Redeploy))
 	mux.HandleFunc("DELETE /api/v1/deployments/{id}", jwtService.AuthMiddleware(deploymentHandler.Delete))
 
-	// Static Project & Deployment Route Serving (Public preview URLs e.g. /projects/my-portfolio)
+	// Static Project & Deployment Route Serving
+	// 1. Backward-compatible /projects/... route
 	mux.HandleFunc("GET /projects/", deploymentServer.ServeProjectOrDeployment)
+
+	// 2. User-scoped routing: /{userId}/{projectSlug}/{deploymentSlug}/* and root fallback
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.Trim(r.URL.Path, "/")
+		parts := strings.Split(path, "/")
+
+		// Check if first path segment is a UUID (User-scoped URL: /{userId}/{projectSlug}/...)
+		if len(parts) >= 2 && parts[0] != "" {
+			if _, err := uuid.Parse(parts[0]); err == nil {
+				deploymentServer.ServeUserScopedDeployment(w, r)
+				return
+			}
+		}
+
+		http.NotFound(w, r)
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -125,3 +143,4 @@ func main() {
 		log.Fatal(err)
 	}
 }
+

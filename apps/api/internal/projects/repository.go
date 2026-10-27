@@ -35,24 +35,38 @@ func (r *Repository) Create(
 ) (*Project, error) {
 	var project Project
 
-	err := r.db.QueryRow(
-		ctx,
+	var query string
+	var err error
+
+	if userID == uuid.Nil {
+		query = `
+			INSERT INTO projects (user_id, name, slug)
+			VALUES (NULL, $1, $2)
+			RETURNING id, user_id, name, slug, created_at, updated_at
 		`
-		INSERT INTO projects (user_id, name, slug)
-		VALUES ($1, $2, $3)
-		RETURNING id, user_id, name, slug, created_at, updated_at
-		`,
-		userID,
-		name,
-		slug,
-	).Scan(
-		&project.ID,
-		&project.UserID,
-		&project.Name,
-		&project.Slug,
-		&project.CreatedAt,
-		&project.UpdatedAt,
-	)
+		err = r.db.QueryRow(ctx, query, name, slug).Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Name,
+			&project.Slug,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		)
+	} else {
+		query = `
+			INSERT INTO projects (user_id, name, slug)
+			VALUES ($1, $2, $3)
+			RETURNING id, user_id, name, slug, created_at, updated_at
+		`
+		err = r.db.QueryRow(ctx, query, userID, name, slug).Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Name,
+			&project.Slug,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		)
+	}
 
 	if err != nil {
 		return nil, err
@@ -152,9 +166,59 @@ func (r *Repository) FindBySlug(ctx context.Context, slug string) (*Project, err
 		SELECT id, user_id, name, slug, created_at, updated_at
 		FROM projects
 		WHERE LOWER(slug) = LOWER($1)
+		ORDER BY created_at DESC
+		LIMIT 1
 		`,
 		slug,
 	).Scan(
+		&project.ID,
+		&project.UserID,
+		&project.Name,
+		&project.Slug,
+		&project.CreatedAt,
+		&project.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &project, nil
+}
+
+func (r *Repository) FindByUserAndSlug(ctx context.Context, userID uuid.UUID, slug string) (*Project, error) {
+	var project Project
+
+	var query string
+	if userID == uuid.Nil {
+		query = `
+			SELECT id, user_id, name, slug, created_at, updated_at
+			FROM projects
+			WHERE LOWER(slug) = LOWER($1)
+			ORDER BY created_at DESC
+			LIMIT 1
+		`
+		err := r.db.QueryRow(ctx, query, slug).Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Name,
+			&project.Slug,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &project, nil
+	}
+
+	query = `
+		SELECT id, user_id, name, slug, created_at, updated_at
+		FROM projects
+		WHERE user_id = $1 AND LOWER(slug) = LOWER($2)
+		LIMIT 1
+	`
+	err := r.db.QueryRow(ctx, query, userID, slug).Scan(
 		&project.ID,
 		&project.UserID,
 		&project.Name,
@@ -181,6 +245,34 @@ func (r *Repository) FindByID(ctx context.Context, id uuid.UUID) (*Project, erro
 		WHERE id = $1
 		`,
 		id,
+	).Scan(
+		&project.ID,
+		&project.UserID,
+		&project.Name,
+		&project.Slug,
+		&project.CreatedAt,
+		&project.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &project, nil
+}
+
+func (r *Repository) FindByIDForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*Project, error) {
+	var project Project
+
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT id, user_id, name, slug, created_at, updated_at
+		FROM projects
+		WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+		`,
+		id,
+		userID,
 	).Scan(
 		&project.ID,
 		&project.UserID,

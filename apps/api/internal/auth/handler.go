@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/unb-hariomVashista/BetterHost.git/internal/response"
 )
 
 type Handler struct {
@@ -18,70 +20,75 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var payload RegisterPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	payload.Email = strings.TrimSpace(payload.Email)
+	if payload.Email == "" || payload.Password == "" {
+		response.Error(w, http.StatusBadRequest, "email and password are required")
 		return
 	}
 
 	res, err := h.service.Register(r.Context(), payload)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(res)
+	response.JSON(w, http.StatusCreated, res)
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	var payload LoginPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(payload.Email) == "" || payload.Password == "" {
+		response.Error(w, http.StatusBadRequest, "email and password are required")
 		return
 	}
 
 	res, err := h.service.Login(r.Context(), payload)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(res)
+	response.JSON(w, http.StatusOK, res)
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "authorization header required")
 		return
 	}
 
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenStr == authHeader {
-		http.Error(w, "Bearer token required", http.StatusUnauthorized)
+	if tokenStr == authHeader || strings.TrimSpace(tokenStr) == "" {
+		response.Error(w, http.StatusUnauthorized, "bearer token required")
 		return
 	}
 
 	user, err := h.service.GetUserFromToken(r.Context(), tokenStr)
 	if err != nil {
-		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(user)
+	response.JSON(w, http.StatusOK, user)
 }

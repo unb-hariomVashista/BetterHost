@@ -25,6 +25,21 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
+async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return fallback;
+    try {
+      const parsed = JSON.parse(text);
+      return parsed.error || parsed.message || text;
+    } catch {
+      return text;
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 export async function registerUser(payload: RegisterPayload): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
     method: "POST",
@@ -35,8 +50,8 @@ export async function registerUser(payload: RegisterPayload): Promise<AuthRespon
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Registration failed");
+    const errorText = await parseErrorMessage(res, "Registration failed");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -52,8 +67,8 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Invalid email or password");
+    const errorText = await parseErrorMessage(res, "Invalid email or password");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -75,6 +90,7 @@ export async function getCurrentUser(token: string): Promise<UserResponse> {
 
 export interface Project {
   id: string;
+  userId?: string;
   name: string;
   slug: string;
   createdAt: string;
@@ -94,8 +110,8 @@ export async function createProject(name: string): Promise<Project> {
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to create project");
+    const errorText = await parseErrorMessage(res, "Failed to create project");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -111,8 +127,8 @@ export async function getProjects(): Promise<Project[]> {
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to fetch projects");
+    const errorText = await parseErrorMessage(res, "Failed to fetch projects");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -132,6 +148,7 @@ export interface Deployment {
 export interface DeploymentWithProject extends Deployment {
   projectName: string;
   projectSlug: string;
+  userId?: string;
   deployment: Deployment;
   project: {
     id: string;
@@ -169,6 +186,7 @@ export async function getAllDeployments(): Promise<DeploymentWithProject[]> {
       updatedAt: item.updatedAt || item.deployment?.updatedAt || new Date().toISOString(),
       projectName: item.projectName || item.project?.name || "Project",
       projectSlug: item.projectSlug || item.project?.slug || "project",
+      userId: item.userId || item.project?.userId || "",
     };
 
     dep.deployment = item.deployment || {
@@ -214,8 +232,8 @@ export async function uploadDeploymentZip(
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to upload zip deployment");
+    const errorText = await parseErrorMessage(res, "Failed to upload zip deployment");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -231,8 +249,8 @@ export async function getProjectDeployments(projectId: string): Promise<Deployme
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to fetch deployments");
+    const errorText = await parseErrorMessage(res, "Failed to fetch deployments");
+    throw new Error(errorText);
   }
 
   return res.json();
@@ -249,8 +267,8 @@ export async function deleteProject(projectId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to delete project");
+    const errorText = await parseErrorMessage(res, "Failed to delete project");
+    throw new Error(errorText);
   }
 }
 
@@ -265,8 +283,8 @@ export async function deleteDeployment(deploymentId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to delete deployment");
+    const errorText = await parseErrorMessage(res, "Failed to delete deployment");
+    throw new Error(errorText);
   }
 }
 
@@ -281,11 +299,9 @@ export async function redeployDeployment(deploymentId: string): Promise<Deployme
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText || "Failed to redeploy");
+    const errorText = await parseErrorMessage(res, "Failed to redeploy");
+    throw new Error(errorText);
   }
 
   return res.json();
 }
-
-

@@ -30,20 +30,24 @@ func (s *Service) CreateDeploymentWithZip(
 	projectSlug string,
 	deploymentSlug string,
 	zipFilePath string,
+	targetDir string,
 ) (*Deployment, error) {
 	deploymentSlug = strings.TrimSpace(strings.ToLower(deploymentSlug))
 	if deploymentSlug == "" {
 		deploymentSlug = fmt.Sprintf("deploy-%d", time.Now().Unix())
 	} else {
-		// Check if slug exists; if so, append unique timestamp suffix to prevent UNIQUE constraint collisions
-		existing, err := s.repository.FindByProjectSlugAndDeploymentSlug(ctx, projectSlug, deploymentSlug)
-		if err == nil && existing != nil {
-			deploymentSlug = fmt.Sprintf("%s-%d", deploymentSlug, time.Now().Unix()%10000)
-		}
+		// Clean slug format
+		deploymentSlug = strings.ReplaceAll(deploymentSlug, " ", "-")
+	}
+
+	// Check if slug exists in this project; if so, append unique timestamp suffix
+	existing, err := s.repository.FindByProjectIDAndSlug(ctx, projectID, deploymentSlug)
+	if err == nil && existing != nil {
+		deploymentSlug = fmt.Sprintf("%s-%d", deploymentSlug, time.Now().Unix()%10000)
 	}
 
 	entrypoint := "index.html"
-	artifactPath := ""
+	artifactPath := targetDir
 
 	// Step 1: Create DB deployment record with QUEUED status
 	deployment, err := s.repository.Create(
@@ -65,6 +69,7 @@ func (s *Service) CreateDeploymentWithZip(
 			ProjectID:      projectID,
 			ProjectSlug:    projectSlug,
 			DeploymentSlug: deploymentSlug,
+			TargetDir:      targetDir,
 			ZipFilePath:    zipFilePath,
 		})
 	}
@@ -88,8 +93,16 @@ func (s *Service) GetDeploymentBySlugs(ctx context.Context, projectSlug, deploym
 	return s.repository.FindByProjectSlugAndDeploymentSlug(ctx, projectSlug, deploymentSlug)
 }
 
+func (s *Service) GetDeploymentByUserProjectAndDeploymentSlug(ctx context.Context, userID uuid.UUID, projectSlug, deploymentSlug string) (*Deployment, error) {
+	return s.repository.FindByUserProjectAndDeploymentSlug(ctx, userID, projectSlug, deploymentSlug)
+}
+
 func (s *Service) DeleteDeployment(ctx context.Context, id uuid.UUID) error {
 	return s.repository.Delete(ctx, id)
+}
+
+func (s *Service) DeleteDeploymentForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	return s.repository.DeleteForUser(ctx, id, userID)
 }
 
 func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deployment, error) {
@@ -98,52 +111,44 @@ func (s *Service) Redeploy(ctx context.Context, deploymentID uuid.UUID) (*Deploy
 		return nil, fmt.Errorf("deployment not found")
 	}
 
-	_ = s.repository.UpdateStatus(ctx, dep.ID, StatusQueued, dep.ArtifactPath, dep.Entrypoint)
-
-	targetDir := normalizeArtifactPath(dep.ArtifactPath)
-	if targetDir == "" {
-		targetDir = filepath.ToSlash(filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug)))
+	// Reset status to QUEUED
+	if err := s.repository.UpdateStatus(ctx, dep.ID, StatusQueued, dep.ArtifactPath, dep.Entrypoint); err != nil {
+		return nil, fmt.Errorf("failed to reset deployment status: %w", err)
 	}
 
-	// Attempt streaming restoration from DB to disk
-	restoredCount, _ := s.repository.RestoreFilesToDisk(ctx, dep.ID, targetDir)
-
-	// If files were missing from DB, check if disk already has them and backfill DB
-	if restoredCount == 0 {
-		if fi, statErr := os.Stat(targetDir); statErr == nil && fi.IsDir() {
-			_ = filepath.WalkDir(targetDir, func(path string, d os.DirEntry, walkErr error) error {
-				if walkErr != nil || d.IsDir() {
-					return nil
-				}
-				rel, relErr := filepath.Rel(targetDir, path)
-				if relErr != nil {
-					return nil
-				}
-				content, readErr := os.ReadFile(path)
-				if readErr == nil {
-					relPath := filepath.ToSlash(rel)
-					_ = s.repository.SaveDeploymentFile(ctx, dep.ID, relPath, content, "")
-				}
-				return nil
-			})
-			restoredCount, _ = s.repository.RestoreFilesToDisk(ctx, dep.ID, targetDir)
+	// Re-extract files from DB to disk
+	go func() {
+		bgCtx := context.Background()
+		targetDir := normalizeArtifactPath(dep.ArtifactPath)
+		if targetDir == "" {
+			targetDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
 		}
-	}
-
-	if restoredCount > 0 {
-		autoFlattenToEntrypoint(targetDir)
-		entrypoint := "index.html"
-		if idxPath, _, found := resolveIndexFile(targetDir); found {
-			rel, _ := filepath.Rel(targetDir, idxPath)
-			entrypoint = rel
+		if err := os.MkdirAll(targetDir, 0755); err != nil {
+			log.Printf("[Redeploy] Failed to recreate directory %s: %v", targetDir, err)
+			_ = s.repository.UpdateStatus(bgCtx, dep.ID, StatusFailed, targetDir, dep.Entrypoint)
+			return
 		}
 
-		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusReady, targetDir, entrypoint)
-	} else {
-		log.Printf("Redeploy failed: No deployment files found in DB or disk for deployment %s (%s)", dep.ID, dep.Slug)
-		_ = s.repository.UpdateStatus(ctx, dep.ID, StatusFailed, "", "")
-		return nil, fmt.Errorf("no archived deployment files found in database or disk for '%s'. Please upload a new zip file for this deployment", dep.Slug)
-	}
+		_ = s.repository.UpdateStatus(bgCtx, dep.ID, StatusDeploying, targetDir, dep.Entrypoint)
+		restored, err := s.repository.RestoreFilesToDisk(bgCtx, dep.ID, targetDir)
+		if err != nil || restored == 0 {
+			log.Printf("[Redeploy] Failed restoring files from DB: %v", err)
+			_ = s.repository.UpdateStatus(bgCtx, dep.ID, StatusFailed, targetDir, dep.Entrypoint)
+			return
+		}
+
+		_ = s.repository.UpdateStatus(bgCtx, dep.ID, StatusReady, targetDir, dep.Entrypoint)
+		log.Printf("[Redeploy] Redeploy complete for %s with %d files", dep.Slug, restored)
+	}()
 
 	return s.repository.FindByID(ctx, deploymentID)
+}
+
+func (s *Service) RedeployForUser(ctx context.Context, deploymentID uuid.UUID, userID uuid.UUID) (*Deployment, error) {
+	dep, err := s.repository.FindByIDForUser(ctx, deploymentID, userID)
+	if err != nil || dep == nil {
+		return nil, fmt.Errorf("deployment not found")
+	}
+
+	return s.Redeploy(ctx, deploymentID)
 }
