@@ -97,6 +97,14 @@ func (s *Service) GetDeploymentByUserProjectAndDeploymentSlug(ctx context.Contex
 	return s.repository.FindByUserProjectAndDeploymentSlug(ctx, userID, projectSlug, deploymentSlug)
 }
 
+func (s *Service) GetDeploymentByID(ctx context.Context, id uuid.UUID) (*Deployment, error) {
+	return s.repository.FindByID(ctx, id)
+}
+
+func (s *Service) GetDeploymentByIDForUser(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*Deployment, error) {
+	return s.repository.FindByIDForUser(ctx, id, userID)
+}
+
 func (s *Service) DeleteDeployment(ctx context.Context, id uuid.UUID) error {
 	return s.repository.Delete(ctx, id)
 }

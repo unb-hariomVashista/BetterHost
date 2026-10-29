@@ -105,6 +105,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/projects/{projectId}/deployments", jwtService.AuthMiddleware(deploymentHandler.CreateWithZip))
 	mux.HandleFunc("GET /api/v1/projects/{projectId}/deployments", jwtService.AuthMiddleware(deploymentHandler.ListByProject))
 	mux.HandleFunc("POST /api/v1/deployments/{id}/redeploy", jwtService.AuthMiddleware(deploymentHandler.Redeploy))
+	mux.HandleFunc("GET /api/v1/deployments/{id}/download", jwtService.AuthMiddleware(deploymentHandler.DownloadZip))
 	mux.HandleFunc("DELETE /api/v1/deployments/{id}", jwtService.AuthMiddleware(deploymentHandler.Delete))
 
 	// Static Project & Deployment Route Serving

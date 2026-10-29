@@ -41,6 +41,7 @@ import {
   deleteProject,
   deleteDeployment,
   redeployDeployment,
+  downloadDeploymentZip,
   getCurrentUser,
   API_BASE_URL,
   Project,
@@ -200,6 +201,20 @@ export default function DashboardPage() {
       await fetchProjects(false);
     } catch (err: any) {
       alert(err.message || "Failed to redeploy deployment");
+    }
+  };
+
+  const handleDownloadDeployment = async (
+    e: React.MouseEvent,
+    deploymentId: string,
+    slug?: string,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await downloadDeploymentZip(deploymentId, slug);
+    } catch (err: any) {
+      alert(err.message || "Failed to download zip");
     }
   };
 
@@ -1662,6 +1677,21 @@ export default function DashboardPage() {
                                       >
                                         <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                                         <span>Redeploy</span>
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenActionDropdownId(null);
+                                          handleDownloadDeployment(
+                                            e,
+                                            item.deployment.id,
+                                            item.deployment.slug,
+                                          );
+                                        }}
+                                        className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                                      >
+                                        <Download className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Download ZIP</span>
                                       </button>
                                       <button
                                         onClick={(e) => {

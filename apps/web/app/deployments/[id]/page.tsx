@@ -32,6 +32,7 @@ import {
   getProjects,
   deleteDeployment,
   redeployDeployment,
+  downloadDeploymentZip,
   API_BASE_URL,
   DeploymentWithProject,
   Project,
@@ -359,6 +360,20 @@ export default function DeploymentInspectionPage({
                   </div>
 
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await downloadDeploymentZip(deploymentItem.id, deploymentItem.slug);
+                        } catch (err: any) {
+                          alert(err.message || "Failed to download zip");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer bg-white"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Download ZIP</span>
+                    </button>
+
                     <button
                       onClick={handleRedeploy}
                       className="flex items-center gap-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors cursor-pointer bg-white"

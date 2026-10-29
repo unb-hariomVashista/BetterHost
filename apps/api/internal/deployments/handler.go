@@ -1,6 +1,7 @@
 package deployments
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"log"
@@ -257,4 +258,122 @@ func (h *Handler) Redeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, dep)
+}
+
+func (h *Handler) DownloadZip(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid deployment id")
+		return
+	}
+
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	var dep *Deployment
+	if ok {
+		dep, err = h.service.GetDeploymentByIDForUser(r.Context(), id, userID)
+	} else {
+		dep, err = h.service.GetDeploymentByID(r.Context(), id)
+	}
+
+	if err != nil || dep == nil {
+		response.Error(w, http.StatusNotFound, "deployment not found")
+		return
+	}
+
+	// 1. Check if artifact files exist on disk
+	diskDir := normalizeArtifactPath(dep.ArtifactPath)
+	hasDiskFiles := false
+	if diskDir != "" {
+		if fi, statErr := os.Stat(diskDir); statErr == nil && fi.IsDir() {
+			entries, _ := os.ReadDir(diskDir)
+			if len(entries) > 0 {
+				hasDiskFiles = true
+			}
+		}
+	}
+
+	// If not on disk, restore to disk from database
+	if !hasDiskFiles {
+		if diskDir == "" {
+			diskDir = filepath.Join(getStorageDir(), "deployments", strings.ToLower(dep.Slug))
+		}
+		_ = os.MkdirAll(diskDir, 0755)
+		restoredCount, _ := h.service.repository.RestoreFilesToDisk(r.Context(), dep.ID, diskDir)
+		if restoredCount > 0 {
+			hasDiskFiles = true
+		}
+	}
+
+	fileName := fmt.Sprintf("%s.zip", strings.ToLower(dep.Slug))
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	if hasDiskFiles {
+		// Stream zip directly from disk
+		err = filepath.WalkDir(diskDir, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() {
+				return nil
+			}
+			rel, relErr := filepath.Rel(diskDir, path)
+			if relErr != nil {
+				return nil
+			}
+			rel = filepath.ToSlash(rel)
+
+			fi, infoErr := d.Info()
+			if infoErr != nil {
+				return nil
+			}
+
+			header, zipHeadErr := zip.FileInfoHeader(fi)
+			if zipHeadErr != nil {
+				return nil
+			}
+			header.Name = rel
+			header.Method = zip.Deflate
+
+			writer, createErr := zipWriter.CreateHeader(header)
+			if createErr != nil {
+				return createErr
+			}
+
+			file, openErr := os.Open(path)
+			if openErr != nil {
+				return nil
+			}
+			defer file.Close()
+
+			_, _ = io.Copy(writer, file)
+			return nil
+		})
+
+		if err != nil {
+			log.Printf("error streaming zip from disk: %v", err)
+		}
+		return
+	}
+
+	// 2. Fallback: stream files directly from DB records if disk is unavailable
+	dbFiles, dbErr := h.service.repository.GetDeploymentFilesByDeploymentID(r.Context(), dep.ID)
+	if dbErr != nil || len(dbFiles) == 0 {
+		log.Printf("no files found for deployment %s on disk or in DB", dep.ID)
+		return
+	}
+
+	for _, f := range dbFiles {
+		writer, createErr := zipWriter.Create(f.Path)
+		if createErr != nil {
+			continue
+		}
+		_, _ = writer.Write(f.Content)
+	}
 }

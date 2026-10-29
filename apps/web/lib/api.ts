@@ -305,3 +305,31 @@ export async function redeployDeployment(deploymentId: string): Promise<Deployme
 
   return res.json();
 }
+
+export async function downloadDeploymentZip(deploymentId: string, slug?: string): Promise<void> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("betterhost_token") : null;
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/deployments/${deploymentId}/download`, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await parseErrorMessage(res, "Failed to download deployment zip");
+    throw new Error(errorText);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = url;
+  a.download = `${(slug || "deployment").toLowerCase()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+

@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Loader2,
   RotateCcw,
+  Download,
   Trash2,
   LogOut,
   X,
@@ -26,6 +27,7 @@ import {
   getProjects,
   deleteDeployment,
   redeployDeployment,
+  downloadDeploymentZip,
   API_BASE_URL,
   DeploymentWithProject,
   Project,
@@ -114,6 +116,19 @@ export default function DeploymentsPage() {
       fetchData();
     } catch (err: any) {
       alert(err.message || "Failed to redeploy deployment");
+    }
+  };
+
+  const handleDownloadDeployment = async (
+    e: React.MouseEvent,
+    deploymentId: string,
+    slug?: string,
+  ) => {
+    e.stopPropagation();
+    try {
+      await downloadDeploymentZip(deploymentId, slug);
+    } catch (err: any) {
+      alert(err.message || "Failed to download zip");
     }
   };
 
@@ -811,6 +826,17 @@ export default function DeploymentsPage() {
                                   >
                                     <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                                     <span>Redeploy</span>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdownId(null);
+                                      handleDownloadDeployment(e, deploymentId, deploymentSlug);
+                                    }}
+                                    className="w-full px-3 py-2 rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>Download ZIP</span>
                                   </button>
                                   <button
                                     onClick={(e) => {
